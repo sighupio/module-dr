@@ -46,10 +46,10 @@ vars:
 images:
 - name: minio/minio
   newName: registry.sighup.io/fury/minio
-  newTag: RELEASE.2025-02-28T09-55-16Z
+  newTag: RELEASE.2025-07-23T15-54-02Z
 - name: minio/mc
   newName: registry.sighup.io/fury/minio/mc
-  newTag: RELEASE.2025-02-21T16-00-46Z
+  newTag: RELEASE.2025-07-21T05-28-08Z
 - name: groundnuty/k8s-wait-for
   newName: registry.sighup.io/fury/groundnuty/k8s-wait-for
   newTag: v2.0

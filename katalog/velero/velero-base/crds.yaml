@@ -8,7 +8,7 @@ items:
   kind: CustomResourceDefinition
   metadata:
     annotations:
-      controller-gen.kubebuilder.io/version: v0.14.0
+      controller-gen.kubebuilder.io/version: v0.16.5
     creationTimestamp: null
     labels:
       component: velero
@@ -96,8 +96,8 @@ items:
               description: BackupRepositoryStatus is the current status of a BackupRepository.
               properties:
                 lastMaintenanceTime:
-                  description: LastMaintenanceTime is the last time maintenance was
-                    run.
+                  description: LastMaintenanceTime is the last time repo maintenance
+                    succeeded.
                   format: date-time
                   nullable: true
                   type: string
@@ -112,6 +112,34 @@ items:
                   - Ready
                   - NotReady
                   type: string
+                recentMaintenance:
+                  description: RecentMaintenance is status of the recent repo maintenance.
+                  items:
+                    properties:
+                      completeTimestamp:
+                        description: CompleteTimestamp is the completion time of the
+                          repo maintenance.
+                        format: date-time
+                        nullable: true
+                        type: string
+                      message:
+                        description: Message is a message about the current status
+                          of the repo maintenance.
+                        type: string
+                      result:
+                        description: Result is the result of the repo maintenance.
+                        enum:
+                        - Succeeded
+                        - Failed
+                        type: string
+                      startTimestamp:
+                        description: StartTimestamp is the start time of the repo
+                          maintenance.
+                        format: date-time
+                        nullable: true
+                        type: string
+                    type: object
+                  type: array
               type: object
           type: object
       served: true
@@ -121,7 +149,7 @@ items:
   kind: CustomResourceDefinition
   metadata:
     annotations:
-      controller-gen.kubebuilder.io/version: v0.14.0
+      controller-gen.kubebuilder.io/version: v0.16.5
     creationTimestamp: null
     labels:
       component: velero
@@ -183,7 +211,6 @@ items:
                   description: |-
                     DefaultVolumesToRestic specifies whether restic should be used to take a
                     backup of all pod volumes by default.
-
 
                     Deprecated: this field is no longer used and will be removed entirely in future. Use DefaultVolumesToFsBackup instead.
                   nullable: true
@@ -297,11 +324,13 @@ items:
                                       items:
                                         type: string
                                       type: array
+                                      x-kubernetes-list-type: atomic
                                   required:
                                   - key
                                   - operator
                                   type: object
                                 type: array
+                                x-kubernetes-list-type: atomic
                               matchLabels:
                                 additionalProperties:
                                   type: string
@@ -487,11 +516,13 @@ items:
                             items:
                               type: string
                             type: array
+                            x-kubernetes-list-type: atomic
                         required:
                         - key
                         - operator
                         type: object
                       type: array
+                      x-kubernetes-list-type: atomic
                     matchLabels:
                       additionalProperties:
                         type: string
@@ -548,11 +579,13 @@ items:
                               items:
                                 type: string
                               type: array
+                              x-kubernetes-list-type: atomic
                           required:
                           - key
                           - operator
                           type: object
                         type: array
+                        x-kubernetes-list-type: atomic
                       matchLabels:
                         additionalProperties:
                           type: string
@@ -786,7 +819,7 @@ items:
   kind: CustomResourceDefinition
   metadata:
     annotations:
-      controller-gen.kubebuilder.io/version: v0.14.0
+      controller-gen.kubebuilder.io/version: v0.16.5
     creationTimestamp: null
     labels:
       component: velero
@@ -872,10 +905,13 @@ items:
                         a valid secret key.
                       type: string
                     name:
+                      default: ""
                       description: |-
                         Name of the referent.
+                        This field is effectively required, but due to backwards compatibility is
+                        allowed to be empty. Instances of this type with an empty value here are
+                        almost certainly wrong.
                         More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                        TODO: Add other useful fields. apiVersion, kind, uid?
                       type: string
                     optional:
                       description: Specify whether the Secret or its key must be defined
@@ -927,7 +963,6 @@ items:
                   description: |-
                     AccessMode is an unused field.
 
-
                     Deprecated: there is now an AccessMode field on the Spec and this field
                     will be removed entirely as of v2.0.
                   enum:
@@ -938,7 +973,6 @@ items:
                   description: |-
                     LastSyncedRevision is the value of the `metadata/revision` file in the backup
                     storage location the last time the BSL's contents were synced into the cluster.
-
 
                     Deprecated: this field is no longer updated or used for detecting changes to
                     the location's contents and will be removed entirely in v2.0.
@@ -976,7 +1010,7 @@ items:
   kind: CustomResourceDefinition
   metadata:
     annotations:
-      controller-gen.kubebuilder.io/version: v0.14.0
+      controller-gen.kubebuilder.io/version: v0.16.5
     creationTimestamp: null
     labels:
       component: velero
@@ -1056,7 +1090,7 @@ items:
   kind: CustomResourceDefinition
   metadata:
     annotations:
-      controller-gen.kubebuilder.io/version: v0.14.0
+      controller-gen.kubebuilder.io/version: v0.16.5
     creationTimestamp: null
     labels:
       component: velero
@@ -1157,7 +1191,7 @@ items:
   kind: CustomResourceDefinition
   metadata:
     annotations:
-      controller-gen.kubebuilder.io/version: v0.14.0
+      controller-gen.kubebuilder.io/version: v0.16.5
     creationTimestamp: null
     labels:
       component: velero
@@ -1253,7 +1287,6 @@ items:
                         the event) or if no container name is specified "spec.containers[2]" (container with
                         index 2 in this pod). This syntax is chosen only to have some well-defined way of
                         referencing a part of an object.
-                        TODO: this design is not final and this field is subject to change in the future.
                       type: string
                     kind:
                       description: |-
@@ -1383,7 +1416,7 @@ items:
   kind: CustomResourceDefinition
   metadata:
     annotations:
-      controller-gen.kubebuilder.io/version: v0.14.0
+      controller-gen.kubebuilder.io/version: v0.16.5
     creationTimestamp: null
     labels:
       component: velero
@@ -1476,7 +1509,6 @@ items:
                         the event) or if no container name is specified "spec.containers[2]" (container with
                         index 2 in this pod). This syntax is chosen only to have some well-defined way of
                         referencing a part of an object.
-                        TODO: this design is not final and this field is subject to change in the future.
                       type: string
                     kind:
                       description: |-
@@ -1595,7 +1627,7 @@ items:
   kind: CustomResourceDefinition
   metadata:
     annotations:
-      controller-gen.kubebuilder.io/version: v0.14.0
+      controller-gen.kubebuilder.io/version: v0.16.5
     creationTimestamp: null
     labels:
       component: velero
@@ -1733,11 +1765,13 @@ items:
                                       items:
                                         type: string
                                       type: array
+                                      x-kubernetes-list-type: atomic
                                   required:
                                   - key
                                   - operator
                                   type: object
                                 type: array
+                                x-kubernetes-list-type: atomic
                               matchLabels:
                                 additionalProperties:
                                   type: string
@@ -1887,11 +1921,13 @@ items:
                             items:
                               type: string
                             type: array
+                            x-kubernetes-list-type: atomic
                         required:
                         - key
                         - operator
                         type: object
                       type: array
+                      x-kubernetes-list-type: atomic
                     matchLabels:
                       additionalProperties:
                         type: string
@@ -1950,11 +1986,13 @@ items:
                               items:
                                 type: string
                               type: array
+                              x-kubernetes-list-type: atomic
                           required:
                           - key
                           - operator
                           type: object
                         type: array
+                        x-kubernetes-list-type: atomic
                       matchLabels:
                         additionalProperties:
                           type: string
@@ -2155,7 +2193,7 @@ items:
   kind: CustomResourceDefinition
   metadata:
     annotations:
-      controller-gen.kubebuilder.io/version: v0.14.0
+      controller-gen.kubebuilder.io/version: v0.16.5
     creationTimestamp: null
     labels:
       component: velero
@@ -2257,7 +2295,6 @@ items:
                       description: |-
                         DefaultVolumesToRestic specifies whether restic should be used to take a
                         backup of all pod volumes by default.
-
 
                         Deprecated: this field is no longer used and will be removed entirely in future. Use DefaultVolumesToFsBackup instead.
                       nullable: true
@@ -2372,11 +2409,13 @@ items:
                                           items:
                                             type: string
                                           type: array
+                                          x-kubernetes-list-type: atomic
                                       required:
                                       - key
                                       - operator
                                       type: object
                                     type: array
+                                    x-kubernetes-list-type: atomic
                                   matchLabels:
                                     additionalProperties:
                                       type: string
@@ -2562,11 +2601,13 @@ items:
                                 items:
                                   type: string
                                 type: array
+                                x-kubernetes-list-type: atomic
                             required:
                             - key
                             - operator
                             type: object
                           type: array
+                          x-kubernetes-list-type: atomic
                         matchLabels:
                           additionalProperties:
                             type: string
@@ -2623,11 +2664,13 @@ items:
                                   items:
                                     type: string
                                   type: array
+                                  x-kubernetes-list-type: atomic
                               required:
                               - key
                               - operator
                               type: object
                             type: array
+                            x-kubernetes-list-type: atomic
                           matchLabels:
                             additionalProperties:
                               type: string
@@ -2756,7 +2799,7 @@ items:
   kind: CustomResourceDefinition
   metadata:
     annotations:
-      controller-gen.kubebuilder.io/version: v0.14.0
+      controller-gen.kubebuilder.io/version: v0.16.5
     creationTimestamp: null
     labels:
       component: velero
@@ -2842,7 +2885,7 @@ items:
   kind: CustomResourceDefinition
   metadata:
     annotations:
-      controller-gen.kubebuilder.io/version: v0.14.0
+      controller-gen.kubebuilder.io/version: v0.16.5
     creationTimestamp: null
     labels:
       component: velero
@@ -2899,10 +2942,13 @@ items:
                         a valid secret key.
                       type: string
                     name:
+                      default: ""
                       description: |-
                         Name of the referent.
+                        This field is effectively required, but due to backwards compatibility is
+                        allowed to be empty. Instances of this type with an empty value here are
+                        almost certainly wrong.
                         More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                        TODO: Add other useful fields. apiVersion, kind, uid?
                       type: string
                     optional:
                       description: Specify whether the Secret or its key must be defined
@@ -2936,7 +2982,7 @@ items:
   kind: CustomResourceDefinition
   metadata:
     annotations:
-      controller-gen.kubebuilder.io/version: v0.14.0
+      controller-gen.kubebuilder.io/version: v0.16.5
     creationTimestamp: null
     labels:
       component: velero
@@ -3029,6 +3075,14 @@ items:
                     DataMover specifies the data mover to be used by the backup.
                     If DataMover is "" or "velero", the built-in data mover will be used.
                   type: string
+                nodeOS:
+                  description: NodeOS is OS of the node where the DataDownload is
+                    processed.
+                  enum:
+                  - auto
+                  - linux
+                  - windows
+                  type: string
                 operationTimeout:
                   description: |-
                     OperationTimeout specifies the time used to wait internal operations,
@@ -3073,6 +3127,16 @@ items:
             status:
               description: DataDownloadStatus is the current status of a DataDownload.
               properties:
+                acceptedByNode:
+                  description: Node is name of the node where the DataUpload is prepared.
+                  type: string
+                acceptedTimestamp:
+                  description: |-
+                    AcceptedTimestamp records the time the DataUpload is to be prepared.
+                    The server's time is used for AcceptedTimestamp
+                  format: date-time
+                  nullable: true
+                  type: string
                 completionTimestamp:
                   description: |-
                     CompletionTimestamp records the time a restore was completed.
@@ -3129,7 +3193,7 @@ items:
   kind: CustomResourceDefinition
   metadata:
     annotations:
-      controller-gen.kubebuilder.io/version: v0.14.0
+      controller-gen.kubebuilder.io/version: v0.16.5
     creationTimestamp: null
     labels:
       component: velero
@@ -3272,6 +3336,17 @@ items:
             status:
               description: DataUploadStatus is the current status of a DataUpload.
               properties:
+                acceptedByNode:
+                  description: AcceptedByNode is name of the node where the DataUpload
+                    is prepared.
+                  type: string
+                acceptedTimestamp:
+                  description: |-
+                    AcceptedTimestamp records the time the DataUpload is to be prepared.
+                    The server's time is used for AcceptedTimestamp
+                  format: date-time
+                  nullable: true
+                  type: string
                 completionTimestamp:
                   description: |-
                     CompletionTimestamp records the time a backup was completed.
@@ -3293,6 +3368,13 @@ items:
                   type: string
                 node:
                   description: Node is name of the node where the DataUpload is processed.
+                  type: string
+                nodeOS:
+                  description: NodeOS is OS of the node where the DataUpload is processed.
+                  enum:
+                  - auto
+                  - linux
+                  - windows
                   type: string
                 path:
                   description: Path is the full path of the snapshot volume being

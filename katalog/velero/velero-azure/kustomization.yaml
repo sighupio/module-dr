@@ -13,8 +13,7 @@ resources:
 images:
 - name: velero/velero-plugin-for-microsoft-azure
   newName: registry.sighup.io/fury/velero/velero-plugin-for-microsoft-azure
-  newTag: v1.11.1
+  newTag: v1.12.2
 
-patchesStrategicMerge:
-- plugin-patch.yaml
-
+patches:
+- path: plugin-patch.yaml
