@@ -7,21 +7,21 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   labels:
-    component: velero
+    k8s-app: velero-node-agent
   name: node-agent
   namespace: kube-system
 spec:
   selector:
     matchLabels:
       k8s-app: velero-node-agent
-      name: node-agent
       component: velero
   template:
     metadata:
       labels:
         k8s-app: velero-node-agent
-        name: node-agent
         component: velero
+        name: node-agent
+        role: node-agent
     spec:
       securityContext:
         runAsUser: 0
