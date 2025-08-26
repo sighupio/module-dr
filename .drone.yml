@@ -400,3 +400,325 @@ volumes:
   - name: mise-cache
     host:
       path: /root/mise_data_dir
+
+---
+name: e2e-kubernetes-1.30
+kind: pipeline
+type: docker
+
+depends_on:
+  - policeman
+
+platform:
+  os: linux
+  arch: amd64
+
+trigger:
+  ref:
+    include:
+      - refs/tags/**
+
+environment:
+  # Mise configuration.
+  MISE_DATA_DIR: "/mise-data"
+  MISE_OVERRIDE_CONFIG_FILENAMES: "mise.ci.toml"
+
+  # Cluster version.
+  CLUSTER_VERSION: "v1.30.4"
+  CLUSTER_NAME: "${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-1.30.4"
+
+  # Default tool versions.
+  KUBECTL_VERSION: "v1.30.4"
+  JQ_VERSION: "1.8.1"
+  BATS_VERSION: "1.1.0"
+  KUSTOMIZE_VERSION: "5.6.0"
+  VELERO_VERSION: "1.16.2"
+
+  # /drone/src is the default workdir for the pipeline
+  # using this folder we don't need to mount another
+  # shared volume between the steps
+  KUBECONFIG: "/drone/src/kubeconfig-130"
+
+  # AWS configuration.
+  AWS_CI_PIPELINE_NUMBER: "dr-130-aws"
+  AWS_CLOUD_CREDENTIALS_PATH: "/drone/src/aws_cloud_credentials_130.yaml"
+  AWS_BACKUP_STORAGE_LOCATION_PATH: "/drone/src/aws_backup_storage_location_130.yaml"
+
+  # GCP configuration.
+  GCP_CI_PIPELINE_NUMBER: "dr-130-gcp"
+  GOOGLE_APPLICATION_CREDENTIALS: "/drone/src/terraform-credentials-130.json"
+  GCP_CLOUD_CREDENTIALS_PATH: "/drone/src/gcp_cloud_credentials_130.yaml"
+  GCP_BACKUP_STORAGE_LOCATION_PATH: "/drone/src/gcp_backup_storage_location_130.yaml"
+
+steps:
+  - name: create-kind-cluster
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    depends_on: [clone]
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    environment:
+      # GITHUB_TOKEN must be defined in the step scope, otherwise it won't work.
+      # drone exec will fail with a `cannot unmarshal !!map into string` error.
+      GITHUB_TOKEN:
+        from_secret: github_token
+    commands:
+      - |-
+        mise use kind@$${KIND_VERSION} kubectl@$${KUBECTL_VERSION}
+        eval "$(mise activate bash --shims)"
+      # NOTE: kind's `--wait` flag that waits for the control-plane to be ready.
+      # It does not work when disabling the default CNI. It will always go in timeout.
+      - kind create cluster --name $${CLUSTER_NAME} --image registry.sighup.io/fury/kindest/node:$${CLUSTER_VERSION} --config katalog/tests/kind-config.yml
+      # Save the kubeconfig so we can use it in other steps.
+      - kind get kubeconfig --name $${CLUSTER_NAME} > $${KUBECONFIG}
+
+  - name: test-install
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [create-kind-cluster]
+    commands:
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-install.sh
+
+  - name: test-backup-restore
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [test-install]
+    commands:
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-backup.sh
+      - bats -t katalog/tests/velero/velero-backup-with-restic-test.sh
+
+  - name: init-aws
+    image: hashicorp/terraform:1.4.6
+    pull: always
+    network_mode: host
+    depends_on: [test-backup-restore]
+    environment:
+      AWS_DEFAULT_REGION:
+        from_secret: aws_region
+      AWS_ACCESS_KEY_ID:
+        from_secret: aws_access_key_id
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: aws_secret_access_key
+      TERRAFORM_TF_STATES_BUCKET_NAME:
+        from_secret: aws_terraform_tf_states_bucket_name
+    commands:
+      - cd examples/aws-example
+      - terraform init
+        --backend=true
+        --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
+        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
+        --backend-config="region=$${AWS_DEFAULT_REGION}"
+      - terraform apply
+        --auto-approve
+        --var="my_cluster_name=$${CLUSTER_NAME}"
+      - terraform output -raw cloud_credentials > "$${AWS_CLOUD_CREDENTIALS_PATH}"
+      - terraform output -raw backup_storage_location > "$${AWS_BACKUP_STORAGE_LOCATION_PATH}"
+
+  - name: apply-aws-configuration
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [init-aws]
+    commands:
+      - |-
+        mise use kubectl@$${KUBECTL_VERSION}
+        eval "$(mise activate bash --shims)"
+      - kubectl apply -f "$${AWS_CLOUD_CREDENTIALS_PATH}" -n kube-system
+      - kubectl apply -f "$${AWS_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
+      - kubectl rollout restart deploy velero -n kube-system
+      - sleep 30 # wait for velero to restart
+      - kubectl get pods -n kube-system
+
+  - name: test-backup-restore-aws
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [apply-aws-configuration]
+    commands:
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-backup.sh
+
+  - name: destroy-aws
+    image: hashicorp/terraform:1.4.6
+    pull: always
+    network_mode: host
+    depends_on: [test-backup-restore-aws]
+    environment:
+      AWS_DEFAULT_REGION:
+        from_secret: aws_region
+      AWS_ACCESS_KEY_ID:
+        from_secret: aws_access_key_id
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: aws_secret_access_key
+      TERRAFORM_TF_STATES_BUCKET_NAME:
+        from_secret: aws_terraform_tf_states_bucket_name
+    commands:
+      - cd examples/aws-example
+      - terraform init
+        --backend=true
+        --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
+        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
+        --backend-config="region=$${AWS_DEFAULT_REGION}"
+      - terraform destroy
+        --auto-approve
+        --var="my_cluster_name=$${CLUSTER_NAME}"
+    when:
+      status:
+        - success
+        - failure
+
+  - name: init-gcp
+    image: hashicorp/terraform:1.4.6
+    pull: always
+    network_mode: host
+    depends_on: [test-backup-restore-aws]
+    environment:
+      GCP_PROJECT:
+        from_secret: gcp_project
+      GCP_CREDENTIALS:
+        from_secret: gcp_credentials
+      TERRAFORM_TF_STATES_BUCKET_NAME:
+        from_secret: gcp_terraform_tf_states_bucket_name
+    commands:
+      - echo $${GCP_CREDENTIALS} > "$${GOOGLE_APPLICATION_CREDENTIALS}"
+      - cd examples/gcp-example
+      - terraform init
+        --backend=true
+        --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
+        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
+      - terraform apply
+        --auto-approve
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
+        --var="gcp_project=$${GCP_PROJECT}"
+      - terraform output -raw cloud_credentials > "$${GCP_CLOUD_CREDENTIALS_PATH}"
+      - terraform output -raw backup_storage_location > "$${GCP_BACKUP_STORAGE_LOCATION_PATH}"
+
+  - name: apply-gcp-configuration
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [init-gcp]
+    commands:
+      - |-
+        mise use kubectl@$${KUBECTL_VERSION}
+        eval "$(mise activate bash --shims)"
+      - kubectl apply -f "$${GCP_CLOUD_CREDENTIALS_PATH}" -n kube-system
+      - kubectl apply -f "$${GCP_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
+      - kustomize build katalog/velero/velero-gcp | kubectl apply -f - -n kube-system
+      - kubectl rollout restart deploy velero -n kube-system
+      - sleep 30 # wait for velero to restart
+      - kubectl get pods -n kube-system
+
+  - name: test-backup-restore-gcp
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [apply-gcp-configuration]
+    commands:
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-backup.sh
+
+  - name: destroy-gcp
+    image: hashicorp/terraform:1.4.6
+    pull: always
+    network_mode: host
+    depends_on: [test-backup-restore-gcp]
+    environment:
+      GCP_PROJECT:
+        from_secret: gcp_project
+      GCP_CREDENTIALS:
+        from_secret: gcp_credentials
+      TERRAFORM_TF_STATES_BUCKET_NAME:
+        from_secret: gcp_terraform_tf_states_bucket_name
+    commands:
+      - cd examples/gcp-example
+      - echo $${GCP_CREDENTIALS} > $${GOOGLE_APPLICATION_CREDENTIALS}
+      - terraform init
+        --backend=true
+        --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
+        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
+      - terraform destroy
+        --auto-approve
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
+        --var="gcp_project"=$${GCP_PROJECT}
+    when:
+      status:
+        - success
+        - failure
+
+  - name: delete-kind-cluster
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    depends_on: [destroy-gcp]
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    commands:
+      - |
+        mise use kind@$${KIND_VERSION}
+        eval "$(mise activate bash --shims)"
+      # does not matter if the command fails
+      - kind delete cluster --name $${CLUSTER_NAME} || true
+    when:
+      status:
+        - success
+        - failure
+
+volumes:
+  - name: dockersock
+    host:
+      path: /var/run/docker.sock
+  - name: mise-cache
+    host:
+      path: /root/mise_data_dir
