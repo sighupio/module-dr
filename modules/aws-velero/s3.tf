@@ -19,7 +19,7 @@ resource "aws_s3_bucket_acl" "backup_bucket_acl" {
 resource "aws_s3_bucket_versioning" "backup_bucket_versioning" {
   bucket = aws_s3_bucket.backup_bucket.id
   versioning_configuration {
-    status = "Enabled"
+    status = "Disabled"
   }
 }
 
