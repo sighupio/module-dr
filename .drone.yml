@@ -27,9 +27,9 @@ platform:
   arch: amd64
 
 environment:
+  # Mise configuration envvars.
   MISE_DATA_DIR: /mise-data
   MISE_OVERRIDE_CONFIG_FILENAMES: "mise.ci.toml"
-  MISE_CIAO: "${DRONE_BUILD_CREATED}-${DRONE_STAGE_NUMBER}"
 
 steps:
   # - name: lint
@@ -75,6 +75,11 @@ steps:
       # we use --ignore-deprecations because we don't want the CI to fail when the API has not been removed yet.
       - /pluto detect velero.yml --target-versions=k8s=v1.33.0 --ignore-deprecations
 
+volumes:
+  - name: mise-cache
+    host:
+      path: /root/mise_data_dir
+
 ---
 name: e2e-kubernetes-1.29
 kind: pipeline
@@ -93,29 +98,39 @@ trigger:
       - refs/tags/**
 
 environment:
+  # Mise configuration.
   MISE_DATA_DIR: /mise-data
   MISE_OVERRIDE_CONFIG_FILENAMES: "mise.ci.toml"
+
+  # Cluster version.
   CLUSTER_VERSION: "v1.29.0"
+  CLUSTER_NAME: "${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-1.29.0"
+
   # Default tool versions.
   KUBECTL_VERSION: "v1.29.1"
   JQ_VERSION: 1.8.1
   BATS_VERSION: 1.1.0
   KUSTOMIZE_VERSION: 5.6.0
+
   # /drone/src is the default workdir for the pipeline
   # using this folder we don't need to mount another
   # shared volume between the steps
   KUBECONFIG: /drone/src/kubeconfig-129
-  CLUSTER_NAME: "${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-1.29.0"
 
 steps:
   - name: create-kind-cluster
     image: quay.io/sighup/mise:v2025.4.4
     pull: always
-    depends_on: [ clone ]
+    depends_on: [clone]
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
     environment:
       # GITHUB_TOKEN must be defined in the step scope, otherwise it won't work.
       # drone exec will fail with a `cannot unmarshal !!map into string` error.
-      GITHUB_TOKEN: 
+      GITHUB_TOKEN:
         from_secret: github_token
     commands:
       - |-
@@ -131,7 +146,12 @@ steps:
     image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ create-kind-cluster ]
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [create-kind-cluster]
     commands:
       - |-
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
@@ -143,7 +163,12 @@ steps:
     image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ test-install ]
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [test-install]
     environment:
       VELERO_VERSION: "1.16.2"
     commands:
@@ -158,7 +183,7 @@ steps:
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [ test-backup-restore ]
+    depends_on: [test-backup-restore]
     environment:
       CI_PIPELINE_NUMBER: dr-129-aws
       AWS_DEFAULT_REGION:
@@ -187,7 +212,12 @@ steps:
     image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ init-aws ]
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [init-aws]
     commands:
       - |-
         mise use kubectl@$${KUBECTL_VERSION}
@@ -202,7 +232,12 @@ steps:
     image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ apply-aws-configuration ]
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [apply-aws-configuration]
     commands:
       - |-
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
@@ -214,7 +249,7 @@ steps:
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [ test-backup-restore-aws ]
+    depends_on: [test-backup-restore-aws]
     environment:
       CI_PIPELINE_NUMBER: dr-129-aws
       AWS_DEFAULT_REGION:
@@ -237,14 +272,14 @@ steps:
         --var="my_cluster_name=$${CLUSTER_NAME}"
     when:
       status:
-      - success
-      - failure
+        - success
+        - failure
 
   - name: init-gcp
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [ test-backup-restore-aws ]
+    depends_on: [test-backup-restore-aws]
     environment:
       GCP_PROJECT:
         from_secret: gcp_project
@@ -274,7 +309,12 @@ steps:
     image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ init-gcp ]
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [init-gcp]
     commands:
       - |-
         mise use kubectl@$${KUBECTL_VERSION}
@@ -290,7 +330,12 @@ steps:
     image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ apply-gcp-configuration ]
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [apply-gcp-configuration]
     commands:
       - |-
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
@@ -302,7 +347,7 @@ steps:
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [ test-backup-restore-gcp ]
+    depends_on: [test-backup-restore-gcp]
     environment:
       GCP_PROJECT:
         from_secret: gcp_project
@@ -326,13 +371,18 @@ steps:
         --var="gcp_project"=$${GCP_PROJECT}
     when:
       status:
-      - success
-      - failure
+        - success
+        - failure
 
   - name: delete-kind-cluster
     image: quay.io/sighup/mise:v2025.4.4
     pull: always
     depends_on: [destroy-gcp]
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
     commands:
       - |
         mise use kind@$${KIND_VERSION}
