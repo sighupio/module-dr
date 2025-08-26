@@ -98,7 +98,7 @@ trigger:
 
 environment:
   # Mise configuration.
-  MISE_DATA_DIR: /mise-data
+  MISE_DATA_DIR: "/mise-data"
   MISE_OVERRIDE_CONFIG_FILENAMES: "mise.ci.toml"
 
   # Cluster version.
@@ -107,14 +107,26 @@ environment:
 
   # Default tool versions.
   KUBECTL_VERSION: "v1.29.1"
-  JQ_VERSION: 1.8.1
-  BATS_VERSION: 1.1.0
-  KUSTOMIZE_VERSION: 5.6.0
+  JQ_VERSION: "1.8.1"
+  BATS_VERSION: "1.1.0"
+  KUSTOMIZE_VERSION: "5.6.0"
+  VELERO_VERSION: "1.16.2"
 
   # /drone/src is the default workdir for the pipeline
   # using this folder we don't need to mount another
   # shared volume between the steps
-  KUBECONFIG: /drone/src/kubeconfig-129
+  KUBECONFIG: "/drone/src/kubeconfig-129"
+
+  # AWS configuration.
+  AWS_CI_PIPELINE_NUMBER: "dr-129-aws"
+  AWS_CLOUD_CREDENTIALS_PATH: "/drone/src/cloud_credentials_129.yaml"
+  AWS_BACKUP_STORAGE_LOCATION_PATH: "/drone/src/backup_storage_location_129.yaml"
+
+  # GCP configuration.
+  GCP_CI_PIPELINE_NUMBER: "dr-129-gcp"
+  GOOGLE_APPLICATION_CREDENTIALS: "/drone/src/terraform-credentials-129.json"
+  GCP_CLOUD_CREDENTIALS_PATH: "/drone/src/cloud_credentials_129.yaml"
+  GCP_BACKUP_STORAGE_LOCATION_PATH: "/drone/src/backup_storage_location_129.yaml"
 
 steps:
   - name: create-kind-cluster
@@ -168,8 +180,6 @@ steps:
       - name: mise-cache
         path: /mise-data
     depends_on: [test-install]
-    environment:
-      VELERO_VERSION: "1.16.2"
     commands:
       - |-
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
@@ -184,7 +194,6 @@ steps:
     network_mode: host
     depends_on: [test-backup-restore]
     environment:
-      CI_PIPELINE_NUMBER: dr-129-aws
       AWS_DEFAULT_REGION:
         from_secret: aws_region
       AWS_ACCESS_KEY_ID:
@@ -198,14 +207,13 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
+        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
         --backend-config="region=$${AWS_DEFAULT_REGION}"
       - terraform apply
         --auto-approve
         --var="my_cluster_name=$${CLUSTER_NAME}"
-      - terraform output -raw cloud_credentials > /drone/src/cloud_credentials_129.yaml
-      - terraform output -raw volume_snapshot_location > /drone/src/volume_snapshot_location_129.yaml
-      - terraform output -raw backup_storage_location > /drone/src/backup_storage_location_129.yaml
+      - terraform output -raw cloud_credentials > "$${AWS_CLOUD_CREDENTIALS_PATH}"
+      - terraform output -raw backup_storage_location > "$${AWS_BACKUP_STORAGE_LOCATION_PATH}"
 
   - name: apply-aws-configuration
     image: quay.io/sighup/mise:v2025.4.4
@@ -221,8 +229,8 @@ steps:
       - |-
         mise use kubectl@$${KUBECTL_VERSION}
         eval "$(mise activate bash --shims)"
-      - kubectl apply -f /drone/src/cloud_credentials_129.yaml -n kube-system
-      - kubectl apply -f /drone/src/backup_storage_location_129.yaml -n kube-system
+      - kubectl apply -f "$${AWS_CLOUD_CREDENTIALS_PATH}" -n kube-system
+      - kubectl apply -f "$${AWS_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
       - kubectl rollout restart deploy velero -n kube-system
       - sleep 30 # wait for velero to restart
       - kubectl get pods -n kube-system
@@ -250,7 +258,6 @@ steps:
     network_mode: host
     depends_on: [test-backup-restore-aws]
     environment:
-      CI_PIPELINE_NUMBER: dr-129-aws
       AWS_DEFAULT_REGION:
         from_secret: aws_region
       AWS_ACCESS_KEY_ID:
@@ -264,7 +271,7 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
+        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
         --backend-config="region=$${AWS_DEFAULT_REGION}"
       - terraform destroy
         --auto-approve
@@ -284,25 +291,21 @@ steps:
         from_secret: gcp_project
       GCP_CREDENTIALS:
         from_secret: gcp_credentials
-      GCP_CREDENTIALS_PATH: /drone/src/terraform-credentials-129.json
-      CI_PIPELINE_NUMBER: dr-129-gcp
       TERRAFORM_TF_STATES_BUCKET_NAME:
         from_secret: gcp_terraform_tf_states_bucket_name
     commands:
-      - echo $${GCP_CREDENTIALS} > $${GCP_CREDENTIALS_PATH}
-      - export GOOGLE_APPLICATION_CREDENTIALS=$${GCP_CREDENTIALS_PATH}
+      - echo $${GCP_CREDENTIALS} > "$${GOOGLE_APPLICATION_CREDENTIALS}"
       - cd examples/gcp-example
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
+        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
       - terraform apply
         --auto-approve
-        --var="my_cluster_name=$${CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
-        --var="gcp_project"=$${GCP_PROJECT}
-      - terraform output -raw cloud_credentials > /drone/src/cloud_credentials_129.yaml
-      - terraform output -raw volume_snapshot_location > /drone/src/volume_snapshot_location_129.yaml
-      - terraform output -raw backup_storage_location > /drone/src/backup_storage_location_129.yaml
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
+        --var="gcp_project=$${GCP_PROJECT}"
+      - terraform output -raw cloud_credentials > "$${GCP_CLOUD_CREDENTIALS_PATH}"
+      - terraform output -raw backup_storage_location > "$${GCP_BACKUP_STORAGE_LOCATION_PATH}"
 
   - name: apply-gcp-configuration
     image: quay.io/sighup/mise:v2025.4.4
@@ -318,8 +321,8 @@ steps:
       - |-
         mise use kubectl@$${KUBECTL_VERSION}
         eval "$(mise activate bash --shims)"
-      - kubectl apply -f /drone/src/cloud_credentials_129.yaml -n kube-system
-      - kubectl apply -f /drone/src/backup_storage_location_129.yaml -n kube-system
+      - kubectl apply -f "$${GCP_CLOUD_CREDENTIALS_PATH}" -n kube-system
+      - kubectl apply -f "$${GCP_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
       - kustomize build katalog/velero/velero-gcp | kubectl apply -f - -n kube-system
       - kubectl rollout restart deploy velero -n kube-system
       - sleep 30 # wait for velero to restart
@@ -352,21 +355,18 @@ steps:
         from_secret: gcp_project
       GCP_CREDENTIALS:
         from_secret: gcp_credentials
-      GCP_CREDENTIALS_PATH: /drone/src/terraform-credentials-129.json
-      CI_PIPELINE_NUMBER: dr-129-gcp
       TERRAFORM_TF_STATES_BUCKET_NAME:
         from_secret: gcp_terraform_tf_states_bucket_name
     commands:
       - cd examples/gcp-example
-      - echo $${GCP_CREDENTIALS} > $${GCP_CREDENTIALS_PATH}
-      - export GOOGLE_APPLICATION_CREDENTIALS=$${GCP_CREDENTIALS_PATH}
+      - echo $${GCP_CREDENTIALS} > $${GOOGLE_APPLICATION_CREDENTIALS}
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
+        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
       - terraform destroy
         --auto-approve
-        --var="my_cluster_name=$${CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
         --var="gcp_project"=$${GCP_PROJECT}
     when:
       status:
