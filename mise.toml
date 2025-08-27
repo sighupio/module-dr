@@ -11,6 +11,7 @@ yq = "4.43.1"
 go = "1.23"
 bats = "1.11.0"
 dyff = "1.9.0"
+drone = "latest"
 "ubi:google/addlicense" = "v1.1.1"
 velero = "1.16.2"
 

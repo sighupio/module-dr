@@ -185,8 +185,9 @@ steps:
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
           jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
-      - bats -t katalog/tests/velero/velero-backup.sh
-      - bats -t katalog/tests/velero/velero-backup-with-restic-test.sh
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
+      - bats -t katalog/tests/velero/velero-file-system-backup.sh
+      - bats -t katalog/tests/velero/velero-snapshot-backup.sh
 
   - name: init-aws
     image: hashicorp/terraform:1.4.6
@@ -250,7 +251,7 @@ steps:
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
           jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
-      - bats -t katalog/tests/velero/velero-backup.sh
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
   - name: destroy-aws
     image: hashicorp/terraform:1.4.6
@@ -343,7 +344,7 @@ steps:
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
           jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
-      - bats -t katalog/tests/velero/velero-backup.sh
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
   - name: destroy-gcp
     image: hashicorp/terraform:1.4.6
@@ -507,8 +508,9 @@ steps:
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
           jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
-      - bats -t katalog/tests/velero/velero-backup.sh
-      - bats -t katalog/tests/velero/velero-backup-with-restic-test.sh
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
+      - bats -t katalog/tests/velero/velero-file-system-backup.sh
+      - bats -t katalog/tests/velero/velero-snapshot-backup.sh
 
   - name: init-aws
     image: hashicorp/terraform:1.4.6
@@ -572,7 +574,7 @@ steps:
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
           jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
-      - bats -t katalog/tests/velero/velero-backup.sh
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
   - name: destroy-aws
     image: hashicorp/terraform:1.4.6
@@ -665,7 +667,7 @@ steps:
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
           jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
-      - bats -t katalog/tests/velero/velero-backup.sh
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
   - name: destroy-gcp
     image: hashicorp/terraform:1.4.6
@@ -829,8 +831,9 @@ steps:
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
           jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
-      - bats -t katalog/tests/velero/velero-backup.sh
-      - bats -t katalog/tests/velero/velero-backup-with-restic-test.sh
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
+      - bats -t katalog/tests/velero/velero-file-system-backup.sh
+      - bats -t katalog/tests/velero/velero-snapshot-backup.sh
 
   - name: init-aws
     image: hashicorp/terraform:1.4.6
@@ -894,7 +897,7 @@ steps:
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
           jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
-      - bats -t katalog/tests/velero/velero-backup.sh
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
   - name: destroy-aws
     image: hashicorp/terraform:1.4.6
@@ -987,7 +990,7 @@ steps:
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
           jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
-      - bats -t katalog/tests/velero/velero-backup.sh
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
   - name: destroy-gcp
     image: hashicorp/terraform:1.4.6
@@ -1151,8 +1154,9 @@ steps:
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
           jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
-      - bats -t katalog/tests/velero/velero-backup.sh
-      - bats -t katalog/tests/velero/velero-backup-with-restic-test.sh
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
+      - bats -t katalog/tests/velero/velero-file-system-backup.sh
+      - bats -t katalog/tests/velero/velero-snapshot-backup.sh
 
   - name: init-aws
     image: hashicorp/terraform:1.4.6
@@ -1216,7 +1220,7 @@ steps:
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
           jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
-      - bats -t katalog/tests/velero/velero-backup.sh
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
   - name: destroy-aws
     image: hashicorp/terraform:1.4.6
@@ -1309,7 +1313,7 @@ steps:
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
           jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
-      - bats -t katalog/tests/velero/velero-backup.sh
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
   - name: destroy-gcp
     image: hashicorp/terraform:1.4.6
@@ -1473,8 +1477,9 @@ steps:
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
           jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
-      - bats -t katalog/tests/velero/velero-backup.sh
-      - bats -t katalog/tests/velero/velero-backup-with-restic-test.sh
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
+      - bats -t katalog/tests/velero/velero-file-system-backup.sh
+      - bats -t katalog/tests/velero/velero-snapshot-backup.sh
 
   - name: init-aws
     image: hashicorp/terraform:1.4.6
@@ -1538,7 +1543,7 @@ steps:
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
           jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
-      - bats -t katalog/tests/velero/velero-backup.sh
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
   - name: destroy-aws
     image: hashicorp/terraform:1.4.6
@@ -1631,7 +1636,7 @@ steps:
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
           jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
-      - bats -t katalog/tests/velero/velero-backup.sh
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
   - name: destroy-gcp
     image: hashicorp/terraform:1.4.6
