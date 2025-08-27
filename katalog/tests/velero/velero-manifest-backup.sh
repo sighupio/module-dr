@@ -42,7 +42,6 @@ load ./../helper
     [ "$status" -eq 0 ]
 }
 
-
 @test "Test Recovery" {
     info
     test() {

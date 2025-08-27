@@ -1,6 +1,6 @@
 # Snapshot Controller for Velero CSI Snapshot Data Movement
 
-This component [`snapshot-controller`](../../katalog/velero/snapshot-controller/) has been added to allows the volumes data to be backed up to a pre-defined backup storage in a consistent manner, following the [CSI Snapshot Data Movement deisng](https://velero.io/docs/main/csi-snapshot-data-movement/).
+This component [`snapshot-controller`](../../katalog/velero/snapshot-controller/) has been added to allow the volumes data to be backed up to a pre-defined backup storage in a consistent manner, following the [CSI Snapshot Data Movement design](https://velero.io/docs/main/csi-snapshot-data-movement/).
 
 ## Image repository and tag
 

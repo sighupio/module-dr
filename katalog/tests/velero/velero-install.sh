@@ -9,17 +9,27 @@ load ./../helper
 
 @test "Applying Monitoring" {
     info
-    kubectl apply -f https://raw.githubusercontent.com/sighupio/fury-kubernetes-monitoring/v2.0.0/katalog/prometheus-operator/crds/0prometheusruleCustomResourceDefinition.yaml
-    kubectl apply -f https://raw.githubusercontent.com/sighupio/fury-kubernetes-monitoring/v2.0.0/katalog/prometheus-operator/crds/0servicemonitorCustomResourceDefinition.yaml
+    kubectl apply -f https://raw.githubusercontent.com/sighupio/fury-kubernetes-monitoring/v3.5.0/katalog/prometheus-operator/crds/0prometheusruleCustomResourceDefinition.yaml
+    kubectl apply -f https://raw.githubusercontent.com/sighupio/fury-kubernetes-monitoring/v3.5.0/katalog/prometheus-operator/crds/0servicemonitorCustomResourceDefinition.yaml
 }
 
-@test "Deploy Snapshot Controller..." {
+@test "Deploy Snapshot Controller" {
     info
     test() {
         apply katalog/velero/snapshot-controller
     }
     loop_it test 30 10
     status=${loop_it_result}
+    [ "$status" -eq 0 ]
+}
+
+@test "Deploy csi-driver-host-path" {
+    info
+    test() {
+        git clone --depth 1 --branch v1.17.0 https://github.com/kubernetes-csi/csi-driver-host-path /tmp/csi-driver
+        /tmp/csi-driver/deploy/kubernetes-1.30/deploy.sh
+    }
+    run test
     [ "$status" -eq 0 ]
 }
 
@@ -81,7 +91,7 @@ load ./../helper
     [ "$status" -eq 0 ]
 }
 
-@test "check minio setup job" {
+@test "Check minio setup Job" {
   info
   test(){
     data=$(kubectl get job -n kube-system -l k8s-app=minio-setup -o json | jq '.items[] | select(.metadata.name == "minio-setup" and .status.succeeded == 1 )')
