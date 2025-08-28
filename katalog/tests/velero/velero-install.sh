@@ -26,8 +26,11 @@ load ./../helper
 @test "Deploy csi-driver-host-path" {
     info
     test() {
-        git clone --depth 1 --branch v1.17.0 https://github.com/kubernetes-csi/csi-driver-host-path /tmp/csi-driver
-        /tmp/csi-driver/deploy/kubernetes-1.30/deploy.sh
+        # Use a unique temp dir to avoid /tmp collisions under parallel runs
+        tmpdir=$(mktemp -d -t csi-driver-XXXXXX)
+        git clone --depth 1 --branch v1.17.0 https://github.com/kubernetes-csi/csi-driver-host-path "$tmpdir"
+        "$tmpdir"/deploy/kubernetes-1.30/deploy.sh
+        rm -rf "$tmpdir"
     }
     run test
     [ "$status" -eq 0 ]
@@ -45,21 +48,22 @@ load ./../helper
 
 @test "Check BackupStorageLocation" {
     info
-    test() {
-        kubectl get backupstoragelocation default -n kube-system -o json | jq .status.phase | grep 'Available'
-    }
-    loop_it test 60 10
-    status=${loop_it_result}
+    # Wait for BSL to become Available instead of polling
+    run kubectl wait \
+        --for=jsonpath='{.status.phase}'=Available \
+        backupstoragelocation/default \
+        -n kube-system \
+        --timeout=180s
     [ "$status" -eq 0 ]
 }
 
 @test "Velero is Running" {
     info
-    test() {
-        kubectl get pods -l k8s-app=velero -o json -n kube-system |jq '.items[].status.containerStatuses[].ready' | uniq | grep -q true
-    }
-    loop_it test 60 10
-    status=${loop_it_result}
+    # Wait for Velero pods to be Ready
+    run kubectl wait \
+        --for=condition=Ready \
+        pod -l k8s-app=velero -n kube-system \
+        --timeout=180s
     [ "$status" -eq 0 ]
 }
 
@@ -74,11 +78,11 @@ load ./../helper
 
 @test "Velero Node Agent is Running" {
     info
-    test() {
-        kubectl get pods -l k8s-app=velero-node-agent -o json -n kube-system |jq '.items[].status.containerStatuses[].ready' | uniq | grep -q true
-    }
-    loop_it test 60 5
-    status=${loop_it_result}
+    # Wait for Velero Node Agent pods to be Ready
+    run kubectl wait \
+        --for=condition=Ready \
+        pod -l k8s-app=velero-node-agent -n kube-system \
+        --timeout=300s
     [ "$status" -eq 0 ]
 }
 
@@ -93,11 +97,7 @@ load ./../helper
 
 @test "Check minio setup Job" {
   info
-  test(){
-    data=$(kubectl get job -n kube-system -l k8s-app=minio-setup -o json | jq '.items[] | select(.metadata.name == "minio-setup" and .status.succeeded == 1 )')
-    if [ "${data}" == "" ]; then return 1; fi
-  }
-  loop_it test 400 6
-  status=${loop_it_result}
-  [[ "$status" -eq 0 ]]
+  # Wait for minio-setup Job to complete
+  run kubectl wait --for=condition=complete job/minio-setup -n kube-system --timeout=300s
+  [ "$status" -eq 0 ]
 }
