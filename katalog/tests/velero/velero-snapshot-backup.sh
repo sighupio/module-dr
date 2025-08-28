@@ -87,6 +87,7 @@ load ./../helper
     info
     test(){
         velero backup delete backup-e2e-snapshot-full --confirm -n kube-system
+        kubectl delete volumesnapshots.snapshot.storage.k8s.io --all 
     }
     run test
     [ "$status" -eq 0 ]

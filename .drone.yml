@@ -183,7 +183,7 @@ steps:
     commands:
       - |-
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
-          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
       - bats -t katalog/tests/velero/velero-manifest-backup.sh
       - bats -t katalog/tests/velero/velero-file-system-backup.sh
@@ -233,7 +233,7 @@ steps:
       - kubectl apply -f "$${AWS_CLOUD_CREDENTIALS_PATH}" -n kube-system
       - kubectl apply -f "$${AWS_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
       - kubectl rollout restart deploy velero -n kube-system
-      - sleep 30 # wait for velero to restart
+      - kubectl rollout status deploy/velero -n kube-system --timeout=180s
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-aws
@@ -249,7 +249,7 @@ steps:
     commands:
       - |-
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
-          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
       - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
@@ -326,7 +326,7 @@ steps:
       - kubectl apply -f "$${GCP_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
       - kustomize build katalog/velero/velero-gcp | kubectl apply -f - -n kube-system
       - kubectl rollout restart deploy velero -n kube-system
-      - sleep 30 # wait for velero to restart
+      - kubectl rollout status deploy/velero -n kube-system --timeout=180s
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-gcp
@@ -342,7 +342,7 @@ steps:
     commands:
       - |-
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
-          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
       - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
@@ -506,7 +506,7 @@ steps:
     commands:
       - |-
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
-          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
       - bats -t katalog/tests/velero/velero-manifest-backup.sh
       - bats -t katalog/tests/velero/velero-file-system-backup.sh
@@ -556,7 +556,7 @@ steps:
       - kubectl apply -f "$${AWS_CLOUD_CREDENTIALS_PATH}" -n kube-system
       - kubectl apply -f "$${AWS_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
       - kubectl rollout restart deploy velero -n kube-system
-      - sleep 30 # wait for velero to restart
+      - kubectl rollout status deploy/velero -n kube-system --timeout=180s
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-aws
@@ -572,7 +572,7 @@ steps:
     commands:
       - |-
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
-          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
       - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
@@ -649,7 +649,7 @@ steps:
       - kubectl apply -f "$${GCP_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
       - kustomize build katalog/velero/velero-gcp | kubectl apply -f - -n kube-system
       - kubectl rollout restart deploy velero -n kube-system
-      - sleep 30 # wait for velero to restart
+      - kubectl rollout status deploy/velero -n kube-system --timeout=180s
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-gcp
@@ -665,7 +665,7 @@ steps:
     commands:
       - |-
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
-          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
       - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
@@ -829,7 +829,7 @@ steps:
     commands:
       - |-
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
-          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
       - bats -t katalog/tests/velero/velero-manifest-backup.sh
       - bats -t katalog/tests/velero/velero-file-system-backup.sh
@@ -879,7 +879,7 @@ steps:
       - kubectl apply -f "$${AWS_CLOUD_CREDENTIALS_PATH}" -n kube-system
       - kubectl apply -f "$${AWS_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
       - kubectl rollout restart deploy velero -n kube-system
-      - sleep 30 # wait for velero to restart
+      - kubectl rollout status deploy/velero -n kube-system --timeout=180s
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-aws
@@ -895,7 +895,7 @@ steps:
     commands:
       - |-
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
-          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
       - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
@@ -972,7 +972,7 @@ steps:
       - kubectl apply -f "$${GCP_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
       - kustomize build katalog/velero/velero-gcp | kubectl apply -f - -n kube-system
       - kubectl rollout restart deploy velero -n kube-system
-      - sleep 30 # wait for velero to restart
+      - kubectl rollout status deploy/velero -n kube-system --timeout=180s
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-gcp
@@ -988,7 +988,7 @@ steps:
     commands:
       - |-
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
-          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
       - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
@@ -1152,7 +1152,7 @@ steps:
     commands:
       - |-
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
-          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
       - bats -t katalog/tests/velero/velero-manifest-backup.sh
       - bats -t katalog/tests/velero/velero-file-system-backup.sh
@@ -1202,7 +1202,7 @@ steps:
       - kubectl apply -f "$${AWS_CLOUD_CREDENTIALS_PATH}" -n kube-system
       - kubectl apply -f "$${AWS_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
       - kubectl rollout restart deploy velero -n kube-system
-      - sleep 30 # wait for velero to restart
+      - kubectl rollout status deploy/velero -n kube-system --timeout=180s
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-aws
@@ -1218,7 +1218,7 @@ steps:
     commands:
       - |-
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
-          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
       - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
@@ -1295,7 +1295,7 @@ steps:
       - kubectl apply -f "$${GCP_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
       - kustomize build katalog/velero/velero-gcp | kubectl apply -f - -n kube-system
       - kubectl rollout restart deploy velero -n kube-system
-      - sleep 30 # wait for velero to restart
+      - kubectl rollout status deploy/velero -n kube-system --timeout=180s
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-gcp
@@ -1311,7 +1311,7 @@ steps:
     commands:
       - |-
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
-          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
       - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
@@ -1475,7 +1475,7 @@ steps:
     commands:
       - |-
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
-          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
       - bats -t katalog/tests/velero/velero-manifest-backup.sh
       - bats -t katalog/tests/velero/velero-file-system-backup.sh
@@ -1525,7 +1525,7 @@ steps:
       - kubectl apply -f "$${AWS_CLOUD_CREDENTIALS_PATH}" -n kube-system
       - kubectl apply -f "$${AWS_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
       - kubectl rollout restart deploy velero -n kube-system
-      - sleep 30 # wait for velero to restart
+      - kubectl rollout status deploy/velero -n kube-system --timeout=180s
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-aws
@@ -1541,7 +1541,7 @@ steps:
     commands:
       - |-
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
-          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
       - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
@@ -1618,7 +1618,7 @@ steps:
       - kubectl apply -f "$${GCP_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
       - kustomize build katalog/velero/velero-gcp | kubectl apply -f - -n kube-system
       - kubectl rollout restart deploy velero -n kube-system
-      - sleep 30 # wait for velero to restart
+      - kubectl rollout status deploy/velero -n kube-system --timeout=180s
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-gcp
@@ -1634,7 +1634,7 @@ steps:
     commands:
       - |-
         mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
-          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@${VELERO_VERSION}
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
       - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
