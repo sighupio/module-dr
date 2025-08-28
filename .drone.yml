@@ -286,7 +286,7 @@ steps:
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [test-backup-restore-aws]
+    depends_on: [destroy-aws]
     environment:
       GCP_PROJECT:
         from_secret: gcp_project
@@ -609,7 +609,7 @@ steps:
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [test-backup-restore-aws]
+    depends_on: [destroy-aws]
     environment:
       GCP_PROJECT:
         from_secret: gcp_project
@@ -932,7 +932,7 @@ steps:
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [test-backup-restore-aws]
+    depends_on: [destroy-aws]
     environment:
       GCP_PROJECT:
         from_secret: gcp_project
@@ -1255,7 +1255,7 @@ steps:
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [test-backup-restore-aws]
+    depends_on: [destroy-aws]
     environment:
       GCP_PROJECT:
         from_secret: gcp_project
@@ -1578,7 +1578,7 @@ steps:
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [test-backup-restore-aws]
+    depends_on: [destroy-aws]
     environment:
       GCP_PROJECT:
         from_secret: gcp_project
