@@ -30,6 +30,10 @@ load ./../helper
         tmpdir=$(mktemp -d -t csi-driver-XXXXXX)
         git clone --depth 1 --branch v1.17.0 https://github.com/kubernetes-csi/csi-driver-host-path "$tmpdir"
         "$tmpdir"/deploy/kubernetes-1.30/deploy.sh
+
+        # Install VolumeSnapshotClass and StorageClass.
+        kubectl apply -f https://raw.githubusercontent.com/kubernetes-csi/csi-driver-host-path/refs/tags/v1.17.0/examples/csi-storageclass.yaml
+        kubectl apply -f https://raw.githubusercontent.com/kubernetes-csi/csi-driver-host-path/refs/tags/v1.17.0/examples/csi-volumesnapshotclass.yaml
         rm -rf "$tmpdir"
     }
     run test
