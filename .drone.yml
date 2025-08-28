@@ -119,14 +119,14 @@ environment:
 
   # AWS configuration.
   AWS_CI_PIPELINE_NUMBER: "dr-129-aws"
-  AWS_CLOUD_CREDENTIALS_PATH: "/drone/src/cloud_credentials_129.yaml"
-  AWS_BACKUP_STORAGE_LOCATION_PATH: "/drone/src/backup_storage_location_129.yaml"
+  AWS_CLOUD_CREDENTIALS_PATH: "/drone/src/aws_cloud_credentials_129.yaml"
+  AWS_BACKUP_STORAGE_LOCATION_PATH: "/drone/src/aws_backup_storage_location_129.yaml"
 
   # GCP configuration.
   GCP_CI_PIPELINE_NUMBER: "dr-129-gcp"
-  GOOGLE_APPLICATION_CREDENTIALS: "/drone/src/terraform-credentials-129.json"
-  GCP_CLOUD_CREDENTIALS_PATH: "/drone/src/cloud_credentials_129.yaml"
-  GCP_BACKUP_STORAGE_LOCATION_PATH: "/drone/src/backup_storage_location_129.yaml"
+  GOOGLE_APPLICATION_CREDENTIALS: "/drone/src/gcp_terraform-credentials-129.json"
+  GCP_CLOUD_CREDENTIALS_PATH: "/drone/src/gcp_cloud_credentials_129.yaml"
+  GCP_BACKUP_STORAGE_LOCATION_PATH: "/drone/src/gcp_backup_storage_location_129.yaml"
 
 steps:
   - name: create-kind-cluster
@@ -447,7 +447,7 @@ environment:
 
   # GCP configuration.
   GCP_CI_PIPELINE_NUMBER: "dr-130-gcp"
-  GOOGLE_APPLICATION_CREDENTIALS: "/drone/src/terraform-credentials-130.json"
+  GOOGLE_APPLICATION_CREDENTIALS: "/drone/src/gcp_terraform-credentials-130.json"
   GCP_CLOUD_CREDENTIALS_PATH: "/drone/src/gcp_cloud_credentials_130.yaml"
   GCP_BACKUP_STORAGE_LOCATION_PATH: "/drone/src/gcp_backup_storage_location_130.yaml"
 
@@ -770,7 +770,7 @@ environment:
 
   # GCP configuration.
   GCP_CI_PIPELINE_NUMBER: "dr-131-gcp"
-  GOOGLE_APPLICATION_CREDENTIALS: "/drone/src/terraform-credentials-131.json"
+  GOOGLE_APPLICATION_CREDENTIALS: "/drone/src/gcp_terraform-credentials-131.json"
   GCP_CLOUD_CREDENTIALS_PATH: "/drone/src/gcp_cloud_credentials_131.yaml"
   GCP_BACKUP_STORAGE_LOCATION_PATH: "/drone/src/gcp_backup_storage_location_131.yaml"
 
@@ -1093,7 +1093,7 @@ environment:
 
   # GCP configuration.
   GCP_CI_PIPELINE_NUMBER: "dr-132-gcp"
-  GOOGLE_APPLICATION_CREDENTIALS: "/drone/src/terraform-credentials-132.json"
+  GOOGLE_APPLICATION_CREDENTIALS: "/drone/src/gcp_terraform-credentials-132.json"
   GCP_CLOUD_CREDENTIALS_PATH: "/drone/src/gcp_cloud_credentials_132.yaml"
   GCP_BACKUP_STORAGE_LOCATION_PATH: "/drone/src/gcp_backup_storage_location_132.yaml"
 
@@ -1416,7 +1416,7 @@ environment:
 
   # GCP configuration.
   GCP_CI_PIPELINE_NUMBER: "dr-133-gcp"
-  GOOGLE_APPLICATION_CREDENTIALS: "/drone/src/terraform-credentials-133.json"
+  GOOGLE_APPLICATION_CREDENTIALS: "/drone/src/gcp_terraform-credentials-133.json"
   GCP_CLOUD_CREDENTIALS_PATH: "/drone/src/gcp_cloud_credentials_133.yaml"
   GCP_BACKUP_STORAGE_LOCATION_PATH: "/drone/src/gcp_backup_storage_location_133.yaml"
 
