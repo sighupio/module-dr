@@ -3,14 +3,10 @@
 # license that can be found in the LICENSE file.
 
 [tools]
-kind = "latest"
+kind = "0.30.0"
 kubectl = "1.33.4"
 kustomize = "5.6.0"
-helm = "3.15.0"
-yq = "4.43.1"
-go = "1.23"
 bats = "1.11.0"
-dyff = "1.9.0"
 drone = "latest"
 "ubi:google/addlicense" = "v1.1.1"
 velero = "1.16.2"
