@@ -10,8 +10,17 @@ load ./../helper
     info
     test() {
         apply katalog/tests/test-app-snapshot
-        sleep 10
-        kubectl exec -it deployment/to-be-snapshotted -- touch /persistent-storage/HELLO_CI
+        kubectl rollout status deployment/to-be-snapshotted --wait --timeout=5m
+    }
+    run test
+    [ "$status" -eq 0 ]
+}
+
+@test "Create file inside PV" {
+    info
+    test() {
+        # No TTY needed in CI
+        kubectl exec deployment/to-be-snapshotted -- touch /persistent-storage/HELLO_CI
     }
     run test
     [ "$status" -eq 0 ]
@@ -38,12 +47,16 @@ load ./../helper
 @test "oops. Chaos...." {
     info
     test() {
-        kubectl exec -it deployment/to-be-snapshotted -- rm /persistent-storage/HELLO_CI
+        # No TTY needed in CI
+        kubectl exec deployment/to-be-snapshotted -- rm /persistent-storage/HELLO_CI
         kubectl delete deployments -n default --all
         pv=$(kubectl get pvc to-be-snapshotted-pvc -o jsonpath='{.spec.volumeName}')
         kubectl delete pvc -n default --all
         kubectl delete pv "$pv"
-        sleep 15
+
+        kubectl wait --for=delete deployment --all -n default --timeout=5m
+        kubectl wait --for=delete pvc --all -n default --timeout=5m
+        kubectl wait --for=delete pv "$pv" --timeout=5m
     }
     run test
     [ "$status" -eq 0 ]
@@ -53,6 +66,8 @@ load ./../helper
     info
     test() {
         timeout 120 velero restore create --from-backup backup-e2e-snapshot-full -n kube-system --wait
+        # Ensure restored deployment becomes ready before verification
+        kubectl rollout status deployment/to-be-snapshotted --wait --timeout=5m
     }
     run test
     [ "$status" -eq 0 ]
@@ -61,7 +76,8 @@ load ./../helper
 @test "Test Recovery that deleted files are present" {
     info
     test() {
-        kubectl exec -it -n default deployment/to-be-snapshotted -- ls /persistent-storage/HELLO_CI
+        # No TTY needed in CI
+        kubectl exec -n default deployment/to-be-snapshotted -- ls /persistent-storage/HELLO_CI
     }
     loop_it test 10 10
     [ "$status" -eq 0 ]
