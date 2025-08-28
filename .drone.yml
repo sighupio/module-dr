@@ -208,7 +208,7 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
+        --backend-config="key=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
         --backend-config="region=$${AWS_DEFAULT_REGION}"
       - terraform apply
         --auto-approve
@@ -272,7 +272,7 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
+        --backend-config="key=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
         --backend-config="region=$${AWS_DEFAULT_REGION}"
       - terraform destroy
         --auto-approve
@@ -300,10 +300,10 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
+        --backend-config="prefix=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
       - terraform apply
         --auto-approve
-        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${DRONE_BUILD_NUMBER}"
         --var="gcp_project=$${GCP_PROJECT}"
       - terraform output -raw cloud_credentials > "$${GCP_CLOUD_CREDENTIALS_PATH}"
       - terraform output -raw backup_storage_location > "$${GCP_BACKUP_STORAGE_LOCATION_PATH}"
@@ -364,10 +364,10 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
+        --backend-config="prefix=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
       - terraform destroy
         --auto-approve
-        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${DRONE_BUILD_NUMBER}"
         --var="gcp_project"=$${GCP_PROJECT}
     when:
       status:
@@ -531,7 +531,7 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
+        --backend-config="key=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
         --backend-config="region=$${AWS_DEFAULT_REGION}"
       - terraform apply
         --auto-approve
@@ -595,7 +595,7 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
+        --backend-config="key=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
         --backend-config="region=$${AWS_DEFAULT_REGION}"
       - terraform destroy
         --auto-approve
@@ -623,10 +623,10 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
+        --backend-config="prefix=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
       - terraform apply
         --auto-approve
-        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${DRONE_BUILD_NUMBER}"
         --var="gcp_project=$${GCP_PROJECT}"
       - terraform output -raw cloud_credentials > "$${GCP_CLOUD_CREDENTIALS_PATH}"
       - terraform output -raw backup_storage_location > "$${GCP_BACKUP_STORAGE_LOCATION_PATH}"
@@ -687,10 +687,10 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
+        --backend-config="prefix=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
       - terraform destroy
         --auto-approve
-        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${DRONE_BUILD_NUMBER}"
         --var="gcp_project"=$${GCP_PROJECT}
     when:
       status:
@@ -854,7 +854,7 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
+        --backend-config="key=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
         --backend-config="region=$${AWS_DEFAULT_REGION}"
       - terraform apply
         --auto-approve
@@ -918,7 +918,7 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
+        --backend-config="key=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
         --backend-config="region=$${AWS_DEFAULT_REGION}"
       - terraform destroy
         --auto-approve
@@ -946,10 +946,10 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
+        --backend-config="prefix=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
       - terraform apply
         --auto-approve
-        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${DRONE_BUILD_NUMBER}"
         --var="gcp_project=$${GCP_PROJECT}"
       - terraform output -raw cloud_credentials > "$${GCP_CLOUD_CREDENTIALS_PATH}"
       - terraform output -raw backup_storage_location > "$${GCP_BACKUP_STORAGE_LOCATION_PATH}"
@@ -1010,10 +1010,10 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
+        --backend-config="prefix=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
       - terraform destroy
         --auto-approve
-        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${DRONE_BUILD_NUMBER}"
         --var="gcp_project"=$${GCP_PROJECT}
     when:
       status:
@@ -1177,7 +1177,7 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
+        --backend-config="key=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
         --backend-config="region=$${AWS_DEFAULT_REGION}"
       - terraform apply
         --auto-approve
@@ -1241,7 +1241,7 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
+        --backend-config="key=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
         --backend-config="region=$${AWS_DEFAULT_REGION}"
       - terraform destroy
         --auto-approve
@@ -1269,10 +1269,10 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
+        --backend-config="prefix=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
       - terraform apply
         --auto-approve
-        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${DRONE_BUILD_NUMBER}"
         --var="gcp_project=$${GCP_PROJECT}"
       - terraform output -raw cloud_credentials > "$${GCP_CLOUD_CREDENTIALS_PATH}"
       - terraform output -raw backup_storage_location > "$${GCP_BACKUP_STORAGE_LOCATION_PATH}"
@@ -1333,10 +1333,10 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
+        --backend-config="prefix=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
       - terraform destroy
         --auto-approve
-        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${DRONE_BUILD_NUMBER}"
         --var="gcp_project"=$${GCP_PROJECT}
     when:
       status:
@@ -1500,7 +1500,7 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
+        --backend-config="key=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
         --backend-config="region=$${AWS_DEFAULT_REGION}"
       - terraform apply
         --auto-approve
@@ -1564,7 +1564,7 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
+        --backend-config="key=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
         --backend-config="region=$${AWS_DEFAULT_REGION}"
       - terraform destroy
         --auto-approve
@@ -1592,10 +1592,10 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
+        --backend-config="prefix=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
       - terraform apply
         --auto-approve
-        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${DRONE_BUILD_NUMBER}"
         --var="gcp_project=$${GCP_PROJECT}"
       - terraform output -raw cloud_credentials > "$${GCP_CLOUD_CREDENTIALS_PATH}"
       - terraform output -raw backup_storage_location > "$${GCP_BACKUP_STORAGE_LOCATION_PATH}"
@@ -1656,10 +1656,10 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
+        --backend-config="prefix=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
       - terraform destroy
         --auto-approve
-        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${DRONE_BUILD_NUMBER}"
         --var="gcp_project"=$${GCP_PROJECT}
     when:
       status:

@@ -63,10 +63,10 @@ load ./../helper
 
 @test "Velero is Running" {
     info
-    # Wait for Velero pods to be Ready
-    run kubectl wait \
-        --for=condition=Ready \
-        pod -l k8s-app=velero -n kube-system \
+    # Wait for the Deployment rollout to complete
+    run kubectl rollout status \
+        deployment/velero \
+        -n kube-system \
         --timeout=10m
     [ "$status" -eq 0 ]
 }
@@ -82,10 +82,10 @@ load ./../helper
 
 @test "Velero Node Agent is Running" {
     info
-    # Wait for Velero Node Agent pods to be Ready
-    run kubectl wait \
-        --for=condition=Ready \
-        pod -l k8s-app=velero-node-agent -n kube-system \
+    # Wait for the DaemonSet rollout to complete (all pods ready)
+    run kubectl rollout status \
+        daemonset/node-agent \
+        -n kube-system \
         --timeout=10m
     [ "$status" -eq 0 ]
 }
