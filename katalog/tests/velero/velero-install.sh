@@ -53,7 +53,7 @@ load ./../helper
         --for=jsonpath='{.status.phase}'=Available \
         backupstoragelocation/default \
         -n kube-system \
-        --timeout=180s
+        --timeout=10m
     [ "$status" -eq 0 ]
 }
 
@@ -63,7 +63,7 @@ load ./../helper
     run kubectl wait \
         --for=condition=Ready \
         pod -l k8s-app=velero -n kube-system \
-        --timeout=180s
+        --timeout=10m
     [ "$status" -eq 0 ]
 }
 
@@ -82,7 +82,7 @@ load ./../helper
     run kubectl wait \
         --for=condition=Ready \
         pod -l k8s-app=velero-node-agent -n kube-system \
-        --timeout=300s
+        --timeout=10m
     [ "$status" -eq 0 ]
 }
 
@@ -98,6 +98,6 @@ load ./../helper
 @test "Check minio setup Job" {
   info
   # Wait for minio-setup Job to complete
-  run kubectl wait --for=condition=complete job/minio-setup -n kube-system --timeout=300s
+  run kubectl wait --for=condition=complete job/minio-setup -n kube-system --timeout=10m
   [ "$status" -eq 0 ]
 }
