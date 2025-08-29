@@ -14,13 +14,15 @@ spec:
   selector:
     matchLabels:
       k8s-app: velero-node-agent
+      name: node-agent
       component: velero
   template:
     metadata:
       labels:
         k8s-app: velero-node-agent
-        component: velero
         name: node-agent
+        component: velero
+        # This label is important, Velero contacts the node agent using this label.
         role: node-agent
     spec:
       securityContext:
