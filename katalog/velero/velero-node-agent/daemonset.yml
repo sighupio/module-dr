@@ -9,6 +9,7 @@ metadata:
   labels:
     k8s-app: velero-node-agent
   name: node-agent
+  namespace: kube-system
 spec:
   selector:
     matchLabels:
@@ -21,11 +22,16 @@ spec:
         k8s-app: velero-node-agent
         name: node-agent
         component: velero
+        # This label is important, Velero contacts the node agent using this label.
+        role: node-agent
     spec:
+      securityContext:
+        runAsUser: 0
       containers:
       - args:
         - node-agent
         - server
+        - --features=
         command:
         - /velero
         env:
@@ -47,7 +53,11 @@ spec:
           value: /credentials/cloud
         image: velero/velero
         imagePullPolicy: Always
+        ports:
+        - containerPort: 8085
+          name: metrics
         securityContext:
+          privileged: false
           allowPrivilegeEscalation: false
         name: node-agent
         resources:
@@ -58,17 +68,21 @@ spec:
         - mountPath: /host_pods
           mountPropagation: HostToContainer
           name: host-pods
+        - mountPath: /var/lib/kubelet/plugins
+          mountPropagation: HostToContainer
+          name: host-plugins
         - mountPath: /scratch
           name: scratch
         - mountPath: /credentials
           name: cloud-credentials
-      securityContext:
-        runAsUser: 0
       serviceAccountName: velero
       volumes:
       - hostPath:
           path: /var/lib/kubelet/pods
         name: host-pods
+      - hostPath:
+          path: /var/lib/kubelet/plugins
+        name: host-plugins
       - emptyDir: {}
         name: scratch
       - name: cloud-credentials

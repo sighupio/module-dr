@@ -9,7 +9,7 @@
 </h1>
 <!-- markdownlint-enable MD033 -->
 
-![Release](https://img.shields.io/badge/Latest%20Release-v3.1.0-blue)
+![Release](https://img.shields.io/badge/Latest%20Release-v3.2.0-blue)
 ![License](https://img.shields.io/github/license/sighupio/module-dr?label=License)
 [![Slack](https://img.shields.io/badge/slack-@kubernetes/fury-yellow.svg?logo=slack&label=Slack)](https://kubernetes.slack.com/archives/C0154HYTAQH)
 
@@ -53,7 +53,7 @@ Disaster Recovery Module provides the following packages:
 
 | Package                                    | Version     | Description                                                                                                     |
 | ------------------------------------------ | ----------- | --------------------------------------------------------------------------------------------------------------- |
-| [velero](katalog/velero)                   | `v1.15.2`    | Backup and restore, perform disaster recovery, and migrate Kubernetes cluster resources and persistent volumes. |
+| [velero](katalog/velero)                   | `v1.16.2`    | Backup and restore, perform disaster recovery, and migrate Kubernetes cluster resources and persistent volumes. |
 | [etcd-backup-s3](katalog/etcd-backup-s3)   | `homegrown` | Backup ETCD on a remote S3 bucket.                                                                              |
 | [etcd-backup-pvc](katalog/etcd-backup-pvc) | `homegrown` | Backup ETCD on a PersistentVolumeClaim.                                                                         |
 
@@ -90,6 +90,7 @@ Deploy the necessary infrastructure to persist the backups natively in cloud pro
 | `1.30.x`           | :white_check_mark: | No known issues |
 | `1.31.x`           | :white_check_mark: | No known issues |
 | `1.32.x`           | :white_check_mark: | No known issues |
+| `1.33.x`           | :white_check_mark: | No known issues |
 
 Check the [compatibility matrix][compatibility-matrix] for additional information about previous releases of the modules.
 
@@ -133,17 +134,17 @@ To deploy Velero on AWS:
 ```yaml
 bases:
   - name: dr/velero/velero-base
-    version: "v3.1.0"
+    version: "v3.2.0"
   - name: dr/velero/velero-aws
-    version: "v3.1.0"
+    version: "v3.2.0"
   - name: dr/velero/velero-node-agent
-    version: "v3.1.0"
+    version: "v3.2.0"
   - name: dr/velero/velero-schedules
-    version: "v3.1.0"
+    version: "v3.2.0"
 
 modules:
   - name: dr/aws-velero
-    version: "v3.1.0"
+    version: "v3.2.0"
 ```
 
 > See `furyctl` [documentation][furyctl-repo] for additional details about `Furyfile.yml` format.
@@ -197,17 +198,17 @@ To deploy Velero on GCP:
 ```yaml
 bases:
   - name: dr/velero/velero-base
-    version: "v3.1.0"
+    version: "v3.2.0"
   - name: dr/velero/velero-gcp
-    version: "v3.1.0"
+    version: "v3.2.0"
   - name: dr/velero/velero-node-agent
-    version: "v3.1.0"
+    version: "v3.2.0"
   - name: dr/velero/velero-schedules
-    version: "v3.1.0"
+    version: "v3.2.0"
 
 modules:
   - name: dr/gcp-velero
-    version: "v3.1.0"
+    version: "v3.2.0"
 ```
 
 > See `furyctl` [documentation][furyctl-repo] for additional details about `Furyfile.yml` format.
@@ -258,17 +259,17 @@ To deploy Velero on Azure:
 ```yaml
 bases:
   - name: dr/velero/velero-base
-    version: "v3.1.0"
+    version: "v3.2.0"
   - name: dr/velero/velero-azure
-    version: "v3.1.0"
+    version: "v3.2.0"
   - name: dr/velero/velero-node-agent
-    version: "v3.1.0"
+    version: "v3.2.0"
   - name: dr/velero/velero-schedules
-    version: "v3.1.0"
+    version: "v3.2.0"
 
 modules:
   - name: dr/azure-velero
-    version: "v3.1.0"
+    version: "v3.2.0"
 ```
 
 > See `furyctl` [documentation][furyctl-repo] for additional details about `Furyfile.yml` format.
@@ -319,13 +320,13 @@ To deploy `velero on-prem`:
 ```yaml
 bases:
   - name: dr/velero/velero-base
-    version: "v3.1.0"
+    version: "v3.2.0"
   - name: dr/velero/velero-on-prem
-    version: "v3.1.0"
+    version: "v3.2.0"
   - name: dr/velero/velero-node-agent
-    version: "v3.1.0"
+    version: "v3.2.0"
   - name: dr/velero/velero-schedules
-    version: "v3.1.0"
+    version: "v3.2.0"
 ```
 
 > See `furyctl` [documentation][furyctl-repo] for additional details about `Furyfile.yml` format.
@@ -361,7 +362,7 @@ In order to deploy `etcd-backup-pvc`, please refer to the [package's README.md][
 
 [sighup-page]: https://sighup.io
 [velero-page]: https://velero.io
-[velero-node-agent-page]: https://velero.io/docs/v1.12/file-system-backup/
+[velero-node-agent-page]: https://velero.io/docs/v1.16/file-system-backup/
 [minio-page]: https://min.io/
 [terraform-page]: https://www.terraform.io/
 [skd-repo]: https://github.com/sighupio/distribution

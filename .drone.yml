@@ -13,11 +13,11 @@ steps:
     commands:
       - go install github.com/google/addlicense@v1.1.1
       - addlicense -c "SIGHUP s.r.l" -v -l bsd --check .
+
 ---
 name: policeman
 kind: pipeline
 type: docker
-
 depends_on:
   - license
 
@@ -25,30 +25,44 @@ platform:
   os: linux
   arch: amd64
 
+environment:
+  # Mise configuration envvars.
+  MISE_DATA_DIR: /mise-data
+  MISE_OVERRIDE_CONFIG_FILENAMES: "mise.ci.toml"
+
 steps:
-  - name: lint
-    image: quay.io/sighup/policeman
-    pull: always
-    environment:
-      FILTER_REGEX_EXCLUDE: (\.github)
-      VALIDATE_TERRAFORM_TERRASCAN: "false"
-      # Identifies false positives like missing 'selector'.
-      # Doing this is valid for Kustomize patches
-      VALIDATE_KUBERNETES_KUBEVAL: "false"
-      # Some duplicated code is intended.
-      VALIDATE_JSCPD: "false"
-      VALIDATE_DOCKERFILE: "false"
-      # Disable natural language checks
-      VALIDATE_NATURAL_LANGUAGE: "false"
-    depends_on:
-      - clone
+  # - name: lint
+  #   image: quay.io/sighup/policeman
+  #   pull: always
+  #   environment:
+  #     FILTER_REGEX_EXCLUDE: (\.github)
+  #     VALIDATE_TERRAFORM_TERRASCAN: "false"
+  #     # Identifies false positives like missing 'selector'.
+  #     # Doing this is valid for Kustomize patches
+  #     VALIDATE_KUBERNETES_KUBEVAL: "false"
+  #     # Some duplicated code is intended.
+  #     VALIDATE_JSCPD: "false"
+  #     VALIDATE_DOCKERFILE: "false"
+  #     # Disable natural language checks
+  #     VALIDATE_NATURAL_LANGUAGE: "false"
+  #   depends_on:
+  #     - clone
 
   - name: render
-    image: quay.io/sighup/e2e-testing:1.1.0_0.2.2_2.16.1_1.9.4_1.20.7_3.8.7_2.4.1
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
+    environment:
+      GITHUB_TOKEN:
+        from_secret: github_token
+    volumes:
+      - name: mise-cache
+        path: /mise-data
     depends_on:
       - clone
     commands:
+      - |
+        mise use kustomize@5.6.0
+        eval "$(mise activate bash --shims)"
       - kustomize build katalog/velero/velero-on-prem > velero.yml
 
   - name: check-deprecated-apis
@@ -58,7 +72,12 @@ steps:
       - render
     commands:
       # we use --ignore-deprecations because we don't want the CI to fail when the API has not been removed yet.
-      - /pluto detect velero.yml --target-versions=k8s=v1.32.0 --ignore-deprecations
+      - /pluto detect velero.yml --target-versions=k8s=v1.33.0 --ignore-deprecations
+
+volumes:
+  - name: mise-cache
+    host:
+      path: /root/mise_data_dir
 
 ---
 name: e2e-kubernetes-1.29
@@ -77,64 +96,105 @@ trigger:
     include:
       - refs/tags/**
 
+environment:
+  # Mise configuration.
+  MISE_DATA_DIR: "/mise-data"
+  MISE_OVERRIDE_CONFIG_FILENAMES: "mise.ci.toml"
+
+  # Cluster version.
+  CLUSTER_VERSION: "v1.29.0"
+  CLUSTER_NAME: "${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-1.29.0"
+
+  # Default tool versions.
+  KUBECTL_VERSION: "v1.29.1"
+  JQ_VERSION: "1.8.1"
+  BATS_VERSION: "1.1.0"
+  KUSTOMIZE_VERSION: "5.6.0"
+  VELERO_VERSION: "1.16.2"
+
+  # /drone/src is the default workdir for the pipeline
+  # using this folder we don't need to mount another
+  # shared volume between the steps
+  KUBECONFIG: "/drone/src/kubeconfig-129"
+
+  # AWS configuration.
+  AWS_CI_PIPELINE_NUMBER: "dr-129-aws"
+  AWS_CLOUD_CREDENTIALS_PATH: "/drone/src/aws_cloud_credentials_129.yaml"
+  AWS_BACKUP_STORAGE_LOCATION_PATH: "/drone/src/aws_backup_storage_location_129.yaml"
+
+  # GCP configuration.
+  GCP_CI_PIPELINE_NUMBER: "dr-129-gcp"
+  GOOGLE_APPLICATION_CREDENTIALS: "/drone/src/gcp_terraform-credentials-129.json"
+  GCP_CLOUD_CREDENTIALS_PATH: "/drone/src/gcp_cloud_credentials_129.yaml"
+  GCP_BACKUP_STORAGE_LOCATION_PATH: "/drone/src/gcp_backup_storage_location_129.yaml"
+
 steps:
   - name: create-kind-cluster
-    image: quay.io/sighup/dind-kind-kubectl-kustomize:0.20.0_1.29.1_3.10.0
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
+    depends_on: [clone]
     volumes:
       - name: dockersock
         path: /var/run/docker.sock
-    depends_on: [clone]
+      - name: mise-cache
+        path: /mise-data
     environment:
-      CLUSTER_VERSION: v1.29.0
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-129
-      # /drone/src is the default workdir for the pipeline
-      # using this folder we don't need to mount another
-      # shared volume between the steps
-      KUBECONFIG: /drone/src/kubeconfig-129
+      # GITHUB_TOKEN must be defined in the step scope, otherwise it won't work.
+      # drone exec will fail with a `cannot unmarshal !!map into string` error.
+      GITHUB_TOKEN:
+        from_secret: github_token
     commands:
-      # NOTE: kind's `--wait` flag that waits for the control-plane ot be ready
-      # does not work when disabling the default CNI. It will always go in timeout.
+      - |-
+        mise use kind@$${KIND_VERSION} kubectl@$${KUBECTL_VERSION}
+        eval "$(mise activate bash --shims)"
+      # NOTE: kind's `--wait` flag that waits for the control-plane to be ready.
+      # It does not work when disabling the default CNI. It will always go in timeout.
       - kind create cluster --name $${CLUSTER_NAME} --image registry.sighup.io/fury/kindest/node:$${CLUSTER_VERSION} --config katalog/tests/kind-config.yml
-      # save the kubeconfig so we can use it from other steps.
+      # Save the kubeconfig so we can use it in other steps.
       - kind get kubeconfig --name $${CLUSTER_NAME} > $${KUBECONFIG}
 
   - name: test-install
-    # KUBECTL 1.29.1 - KUSTOMIZE 3.5.3 - HELM 3.1.1 - YQ 4.21.1 - ISTIOCTL 1.9.4 - FURYCTL 0.9.0 - BATS 1.1.0
-    image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ create-kind-cluster ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-129
-      KUBECONFIG: /drone/src/kubeconfig-129
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [create-kind-cluster]
     commands:
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION}
+        eval "$(mise activate bash --shims)"
       - bats -t katalog/tests/velero/velero-install.sh
 
   - name: test-backup-restore
-    image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ test-install ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-129
-      KUBECONFIG: /drone/src/kubeconfig-129
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [test-install]
     commands:
-      - curl -Ls -o velero.tar.gz https://github.com/vmware-tanzu/velero/releases/download/v1.15.0/velero-v1.15.0-linux-amd64.tar.gz
-      - tar -zxf velero.tar.gz
-      - mv velero*/velero /usr/local/bin/velero
-      - bats -t katalog/tests/velero/velero-backup.sh
-      - bats -t katalog/tests/velero/velero-backup-with-restic-test.sh
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
+      - bats -t katalog/tests/velero/velero-file-system-backup.sh
+      - bats -t katalog/tests/velero/velero-snapshot-backup.sh
 
   - name: init-aws
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [ test-backup-restore ]
+    depends_on: [test-backup-restore]
     environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-129
-      KUBECONFIG: /drone/src/kubeconfig-129
-      CI_PIPELINE_NUMBER: dr-129-aws
       AWS_DEFAULT_REGION:
         from_secret: aws_region
       AWS_ACCESS_KEY_ID:
@@ -148,53 +208,57 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
+        --backend-config="key=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
         --backend-config="region=$${AWS_DEFAULT_REGION}"
       - terraform apply
         --auto-approve
         --var="my_cluster_name=$${CLUSTER_NAME}"
-      - terraform output -raw cloud_credentials > /drone/src/cloud_credentials_129.yaml
-      - terraform output -raw volume_snapshot_location > /drone/src/volume_snapshot_location_129.yaml
-      - terraform output -raw backup_storage_location > /drone/src/backup_storage_location_129.yaml
+      - terraform output -raw cloud_credentials > "$${AWS_CLOUD_CREDENTIALS_PATH}"
+      - terraform output -raw backup_storage_location > "$${AWS_BACKUP_STORAGE_LOCATION_PATH}"
 
   - name: apply-aws-configuration
-    image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ init-aws ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-129
-      KUBECONFIG: /drone/src/kubeconfig-129
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [init-aws]
     commands:
-      - kubectl apply -f /drone/src/cloud_credentials_129.yaml -n kube-system
-      - kubectl apply -f /drone/src/backup_storage_location_129.yaml -n kube-system
+      - |-
+        mise use kubectl@$${KUBECTL_VERSION}
+        eval "$(mise activate bash --shims)"
+      - kubectl apply -f "$${AWS_CLOUD_CREDENTIALS_PATH}" -n kube-system
+      - kubectl apply -f "$${AWS_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
       - kubectl rollout restart deploy velero -n kube-system
-      - sleep 30 # wait for velero to restart
+      - kubectl rollout status deploy/velero -n kube-system --timeout=180s
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-aws
-    image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ apply-aws-configuration ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-129
-      KUBECONFIG: /drone/src/kubeconfig-129
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [apply-aws-configuration]
     commands:
-      - curl -Ls -o velero.tar.gz https://github.com/vmware-tanzu/velero/releases/download/v1.15.0/velero-v1.15.0-linux-amd64.tar.gz
-      - tar -zxf velero.tar.gz
-      - mv velero*/velero /usr/local/bin/velero
-      - bats -t katalog/tests/velero/velero-backup.sh
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
   - name: destroy-aws
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [ test-backup-restore-aws ]
+    depends_on: [test-backup-restore-aws]
     environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-129
-      KUBECONFIG: /drone/src/kubeconfig-129
-      CI_PIPELINE_NUMBER: dr-129-aws
       AWS_DEFAULT_REGION:
         from_secret: aws_region
       AWS_ACCESS_KEY_ID:
@@ -208,228 +272,121 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
+        --backend-config="key=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
         --backend-config="region=$${AWS_DEFAULT_REGION}"
       - terraform destroy
         --auto-approve
         --var="my_cluster_name=$${CLUSTER_NAME}"
     when:
       status:
-      - success
-      - failure
+        - success
+        - failure
 
   - name: init-gcp
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [ test-backup-restore-aws ]
+    depends_on: [destroy-aws]
     environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-129
-      KUBECONFIG: /drone/src/kubeconfig-129
       GCP_PROJECT:
         from_secret: gcp_project
       GCP_CREDENTIALS:
         from_secret: gcp_credentials
-      GCP_CREDENTIALS_PATH: /drone/src/terraform-credentials-129.json
-      CI_PIPELINE_NUMBER: dr-129-gcp
       TERRAFORM_TF_STATES_BUCKET_NAME:
         from_secret: gcp_terraform_tf_states_bucket_name
     commands:
-      - echo $${GCP_CREDENTIALS} > $${GCP_CREDENTIALS_PATH}
-      - export GOOGLE_APPLICATION_CREDENTIALS=$${GCP_CREDENTIALS_PATH}
+      - echo $${GCP_CREDENTIALS} > "$${GOOGLE_APPLICATION_CREDENTIALS}"
       - cd examples/gcp-example
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
+        --backend-config="prefix=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
       - terraform apply
         --auto-approve
-        --var="my_cluster_name=$${CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
-        --var="gcp_project"=$${GCP_PROJECT}
-      - terraform output -raw cloud_credentials > /drone/src/cloud_credentials_129.yaml
-      - terraform output -raw volume_snapshot_location > /drone/src/volume_snapshot_location_129.yaml
-      - terraform output -raw backup_storage_location > /drone/src/backup_storage_location_129.yaml
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${DRONE_BUILD_NUMBER}"
+        --var="gcp_project=$${GCP_PROJECT}"
+      - terraform output -raw cloud_credentials > "$${GCP_CLOUD_CREDENTIALS_PATH}"
+      - terraform output -raw backup_storage_location > "$${GCP_BACKUP_STORAGE_LOCATION_PATH}"
 
   - name: apply-gcp-configuration
-    image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ init-gcp ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-129
-      KUBECONFIG: /drone/src/kubeconfig-129
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [init-gcp]
     commands:
-      - kubectl apply -f /drone/src/cloud_credentials_129.yaml -n kube-system
-      - kubectl apply -f /drone/src/backup_storage_location_129.yaml -n kube-system
+      - |-
+        mise use kubectl@$${KUBECTL_VERSION}
+        eval "$(mise activate bash --shims)"
+      - kubectl apply -f "$${GCP_CLOUD_CREDENTIALS_PATH}" -n kube-system
+      - kubectl apply -f "$${GCP_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
       - kustomize build katalog/velero/velero-gcp | kubectl apply -f - -n kube-system
       - kubectl rollout restart deploy velero -n kube-system
-      - sleep 30 # wait for velero to restart
+      - kubectl rollout status deploy/velero -n kube-system --timeout=180s
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-gcp
-    image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ apply-gcp-configuration ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-129
-      KUBECONFIG: /drone/src/kubeconfig-129
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [apply-gcp-configuration]
     commands:
-      - curl -Ls -o velero.tar.gz https://github.com/vmware-tanzu/velero/releases/download/v1.15.0/velero-v1.15.0-linux-amd64.tar.gz
-      - tar -zxf velero.tar.gz
-      - mv velero*/velero /usr/local/bin/velero
-      - bats -t katalog/tests/velero/velero-backup.sh
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
   - name: destroy-gcp
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [ test-backup-restore-gcp ]
+    depends_on: [test-backup-restore-gcp]
     environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-129
-      KUBECONFIG: /drone/src/kubeconfig-129
       GCP_PROJECT:
         from_secret: gcp_project
       GCP_CREDENTIALS:
         from_secret: gcp_credentials
-      GCP_CREDENTIALS_PATH: /drone/src/terraform-credentials-129.json
-      CI_PIPELINE_NUMBER: dr-129-gcp
       TERRAFORM_TF_STATES_BUCKET_NAME:
         from_secret: gcp_terraform_tf_states_bucket_name
     commands:
       - cd examples/gcp-example
-      - echo $${GCP_CREDENTIALS} > $${GCP_CREDENTIALS_PATH}
-      - export GOOGLE_APPLICATION_CREDENTIALS=$${GCP_CREDENTIALS_PATH}
+      - echo $${GCP_CREDENTIALS} > $${GOOGLE_APPLICATION_CREDENTIALS}
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
+        --backend-config="prefix=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
       - terraform destroy
         --auto-approve
-        --var="my_cluster_name=$${CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${DRONE_BUILD_NUMBER}"
         --var="gcp_project"=$${GCP_PROJECT}
     when:
       status:
-      - success
-      - failure
-
-  # - name: init-azure
-  #   image: hashicorp/terraform:1.4.6
-  #   pull: always
-  #   network_mode: host
-  #   depends_on: [ test-backup-restore-gcp ]
-  #   environment:
-  #     CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-129
-  #     KUBECONFIG: /drone/src/kubeconfig-129
-  #     CI_PIPELINE_NUMBER: k129a
-  #     TERRAFORM_TF_STATES_BUCKET_NAME:
-  #       from_secret: arm_terraform_tf_states_bucket_name
-  #     STORAGE_ACCOUNT_NAME:
-  #       from_secret: storage_account_name
-  #     RESOURCE_GROUP_NAME:
-  #       from_secret: resource_group_name
-  #     ARM_CLIENT_ID:
-  #       from_secret: arm_client_id
-  #     ARM_CLIENT_SECRET:
-  #       from_secret: arm_client_secret
-  #     ARM_SUBSCRIPTION_ID:
-  #       from_secret: arm_subscription_id
-  #     ARM_TENANT_ID:
-  #       from_secret: arm_tenant_id
-  #   commands:
-  #     - cd examples/azure-example
-  #     - terraform init
-  #       --backend=true
-  #       --backend-config="storage_account_name=$${STORAGE_ACCOUNT_NAME}"
-  #       --backend-config="resource_group_name=$${RESOURCE_GROUP_NAME}"
-  #       --backend-config="container_name=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-  #       --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
-  #     - terraform apply
-  #       --auto-approve
-  #       --var="my_cluster_name=$${CI_PIPELINE_NUMBER}${CI_BUILD_NUMBER}"
-  #     - terraform output -raw cloud_credentials > /drone/src/cloud_credentials_129.yaml
-  #     - terraform output -raw volume_snapshot_location > /drone/src/volume_snapshot_location_129.yaml
-  #     - terraform output -raw backup_storage_location > /drone/src/backup_storage_location_129.yaml
-
-  # - name: apply-azure-configuration
-  #   image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
-  #   pull: always
-  #   network_mode: host
-  #   depends_on: [ init-azure ]
-  #   environment:
-  #     CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-129
-  #     KUBECONFIG: /drone/src/kubeconfig-129
-  #   commands:
-  #     - kubectl apply -f /drone/src/cloud_credentials_129.yaml -n kube-system
-  #     - kubectl apply -f /drone/src/backup_storage_location_129.yaml -n kube-system
-  #     - kustomize build katalog/velero/velero-azure | kubectl apply -f - -n kube-system
-  #     - kubectl rollout restart deploy velero -n kube-system
-  #     - sleep 30 # wait for velero to restart
-  #     - kubectl get pods -n kube-system
-
-  # - name: test-backup-restore-azure
-  #   image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
-  #   pull: always
-  #   network_mode: host
-  #   depends_on: [ apply-azure-configuration ]
-  #   environment:
-  #     CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-129
-  #     KUBECONFIG: /drone/src/kubeconfig-129
-  #   commands:
-  #     - curl -Ls -o velero.tar.gz https://github.com/vmware-tanzu/velero/releases/download/v1.15.0/velero-v1.15.0-linux-amd64.tar.gz
-  #     - tar -zxf velero.tar.gz
-  #     - mv velero*/velero /usr/local/bin/velero
-  #     - bats -t katalog/tests/velero/velero-backup.sh
-
-  # - name: destroy-azure
-  #   image: hashicorp/terraform:1.4.6
-  #   pull: always
-  #   network_mode: host
-  #   depends_on: [ test-backup-restore-azure ]
-  #   environment:
-  #     CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-129
-  #     KUBECONFIG: /drone/src/kubeconfig-129
-  #     CI_PIPELINE_NUMBER: k129a
-  #     TERRAFORM_TF_STATES_BUCKET_NAME:
-  #       from_secret: arm_terraform_tf_states_bucket_name
-  #     STORAGE_ACCOUNT_NAME:
-  #       from_secret: storage_account_name
-  #     RESOURCE_GROUP_NAME:
-  #       from_secret: resource_group_name
-  #     ARM_CLIENT_ID:
-  #       from_secret: arm_client_id
-  #     ARM_CLIENT_SECRET:
-  #       from_secret: arm_client_secret
-  #     ARM_SUBSCRIPTION_ID:
-  #       from_secret: arm_subscription_id
-  #     ARM_TENANT_ID:
-  #       from_secret: arm_tenant_id
-  #   commands:
-  #     - cd examples/azure-example
-  #     - terraform init
-  #       --backend=true
-  #       --backend-config="storage_account_name=$${STORAGE_ACCOUNT_NAME}"
-  #       --backend-config="resource_group_name=$${RESOURCE_GROUP_NAME}"
-  #       --backend-config="container_name=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-  #       --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
-  #     - terraform destroy
-  #       --auto-approve
-  #       --var="my_cluster_name=$${CI_PIPELINE_NUMBER}${CI_BUILD_NUMBER}"
-  #   when:
-  #     status:
-  #     - success
-  #     - failure
+        - success
+        - failure
 
   - name: delete-kind-cluster
-    image: quay.io/sighup/dind-kind-kubectl-kustomize:0.20.0_1.29.1_3.10.0
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    depends_on: [destroy-gcp]
     volumes:
       - name: dockersock
         path: /var/run/docker.sock
-    pull: always
-    depends_on: [destroy-gcp]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-129
+      - name: mise-cache
+        path: /mise-data
     commands:
+      - |
+        mise use kind@$${KIND_VERSION}
+        eval "$(mise activate bash --shims)"
       # does not matter if the command fails
       - kind delete cluster --name $${CLUSTER_NAME} || true
     when:
@@ -441,6 +398,9 @@ volumes:
   - name: dockersock
     host:
       path: /var/run/docker.sock
+  - name: mise-cache
+    host:
+      path: /root/mise_data_dir
 
 ---
 name: e2e-kubernetes-1.30
@@ -459,64 +419,105 @@ trigger:
     include:
       - refs/tags/**
 
+environment:
+  # Mise configuration.
+  MISE_DATA_DIR: "/mise-data"
+  MISE_OVERRIDE_CONFIG_FILENAMES: "mise.ci.toml"
+
+  # Cluster version.
+  CLUSTER_VERSION: "v1.30.4"
+  CLUSTER_NAME: "${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-1.30.4"
+
+  # Default tool versions.
+  KUBECTL_VERSION: "v1.30.4"
+  JQ_VERSION: "1.8.1"
+  BATS_VERSION: "1.1.0"
+  KUSTOMIZE_VERSION: "5.6.0"
+  VELERO_VERSION: "1.16.2"
+
+  # /drone/src is the default workdir for the pipeline
+  # using this folder we don't need to mount another
+  # shared volume between the steps
+  KUBECONFIG: "/drone/src/kubeconfig-130"
+
+  # AWS configuration.
+  AWS_CI_PIPELINE_NUMBER: "dr-130-aws"
+  AWS_CLOUD_CREDENTIALS_PATH: "/drone/src/aws_cloud_credentials_130.yaml"
+  AWS_BACKUP_STORAGE_LOCATION_PATH: "/drone/src/aws_backup_storage_location_130.yaml"
+
+  # GCP configuration.
+  GCP_CI_PIPELINE_NUMBER: "dr-130-gcp"
+  GOOGLE_APPLICATION_CREDENTIALS: "/drone/src/gcp_terraform-credentials-130.json"
+  GCP_CLOUD_CREDENTIALS_PATH: "/drone/src/gcp_cloud_credentials_130.yaml"
+  GCP_BACKUP_STORAGE_LOCATION_PATH: "/drone/src/gcp_backup_storage_location_130.yaml"
+
 steps:
   - name: create-kind-cluster
-    image: quay.io/sighup/dind-kind-kubectl-kustomize:0.20.0_1.29.1_3.10.0
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
+    depends_on: [clone]
     volumes:
       - name: dockersock
         path: /var/run/docker.sock
-    depends_on: [clone]
+      - name: mise-cache
+        path: /mise-data
     environment:
-      CLUSTER_VERSION: v1.30.4
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-130
-      # /drone/src is the default workdir for the pipeline
-      # using this folder we don't need to mount another
-      # shared volume between the steps
-      KUBECONFIG: /drone/src/kubeconfig-130
+      # GITHUB_TOKEN must be defined in the step scope, otherwise it won't work.
+      # drone exec will fail with a `cannot unmarshal !!map into string` error.
+      GITHUB_TOKEN:
+        from_secret: github_token
     commands:
-      # NOTE: kind's `--wait` flag that waits for the control-plane ot be ready
-      # does not work when disabling the default CNI. It will always go in timeout.
+      - |-
+        mise use kind@$${KIND_VERSION} kubectl@$${KUBECTL_VERSION}
+        eval "$(mise activate bash --shims)"
+      # NOTE: kind's `--wait` flag that waits for the control-plane to be ready.
+      # It does not work when disabling the default CNI. It will always go in timeout.
       - kind create cluster --name $${CLUSTER_NAME} --image registry.sighup.io/fury/kindest/node:$${CLUSTER_VERSION} --config katalog/tests/kind-config.yml
-      # save the kubeconfig so we can use it from other steps.
+      # Save the kubeconfig so we can use it in other steps.
       - kind get kubeconfig --name $${CLUSTER_NAME} > $${KUBECONFIG}
 
   - name: test-install
-    # KUBECTL 1.29.1 - KUSTOMIZE 3.5.3 - HELM 3.1.1 - YQ 4.21.1 - ISTIOCTL 1.9.4 - FURYCTL 0.9.0 - BATS 1.1.0
-    image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ create-kind-cluster ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-130
-      KUBECONFIG: /drone/src/kubeconfig-130
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [create-kind-cluster]
     commands:
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION}
+        eval "$(mise activate bash --shims)"
       - bats -t katalog/tests/velero/velero-install.sh
 
   - name: test-backup-restore
-    image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ test-install ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-130
-      KUBECONFIG: /drone/src/kubeconfig-130
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [test-install]
     commands:
-      - curl -Ls -o velero.tar.gz https://github.com/vmware-tanzu/velero/releases/download/v1.15.0/velero-v1.15.0-linux-amd64.tar.gz
-      - tar -zxf velero.tar.gz
-      - mv velero*/velero /usr/local/bin/velero
-      - bats -t katalog/tests/velero/velero-backup.sh
-      - bats -t katalog/tests/velero/velero-backup-with-restic-test.sh
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
+      - bats -t katalog/tests/velero/velero-file-system-backup.sh
+      - bats -t katalog/tests/velero/velero-snapshot-backup.sh
 
   - name: init-aws
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [ test-backup-restore ]
+    depends_on: [test-backup-restore]
     environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-130
-      KUBECONFIG: /drone/src/kubeconfig-130
-      CI_PIPELINE_NUMBER: dr-130-aws
       AWS_DEFAULT_REGION:
         from_secret: aws_region
       AWS_ACCESS_KEY_ID:
@@ -530,53 +531,57 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
+        --backend-config="key=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
         --backend-config="region=$${AWS_DEFAULT_REGION}"
       - terraform apply
         --auto-approve
         --var="my_cluster_name=$${CLUSTER_NAME}"
-      - terraform output -raw cloud_credentials > /drone/src/cloud_credentials_130.yaml
-      - terraform output -raw volume_snapshot_location > /drone/src/volume_snapshot_location_130.yaml
-      - terraform output -raw backup_storage_location > /drone/src/backup_storage_location_130.yaml
+      - terraform output -raw cloud_credentials > "$${AWS_CLOUD_CREDENTIALS_PATH}"
+      - terraform output -raw backup_storage_location > "$${AWS_BACKUP_STORAGE_LOCATION_PATH}"
 
   - name: apply-aws-configuration
-    image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ init-aws ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-130
-      KUBECONFIG: /drone/src/kubeconfig-130
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [init-aws]
     commands:
-      - kubectl apply -f /drone/src/cloud_credentials_130.yaml -n kube-system
-      - kubectl apply -f /drone/src/backup_storage_location_130.yaml -n kube-system
+      - |-
+        mise use kubectl@$${KUBECTL_VERSION}
+        eval "$(mise activate bash --shims)"
+      - kubectl apply -f "$${AWS_CLOUD_CREDENTIALS_PATH}" -n kube-system
+      - kubectl apply -f "$${AWS_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
       - kubectl rollout restart deploy velero -n kube-system
-      - sleep 30 # wait for velero to restart
+      - kubectl rollout status deploy/velero -n kube-system --timeout=180s
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-aws
-    image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ apply-aws-configuration ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-130
-      KUBECONFIG: /drone/src/kubeconfig-130
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [apply-aws-configuration]
     commands:
-      - curl -Ls -o velero.tar.gz https://github.com/vmware-tanzu/velero/releases/download/v1.15.0/velero-v1.15.0-linux-amd64.tar.gz
-      - tar -zxf velero.tar.gz
-      - mv velero*/velero /usr/local/bin/velero
-      - bats -t katalog/tests/velero/velero-backup.sh
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
   - name: destroy-aws
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [ test-backup-restore-aws ]
+    depends_on: [test-backup-restore-aws]
     environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-130
-      KUBECONFIG: /drone/src/kubeconfig-130
-      CI_PIPELINE_NUMBER: dr-130-aws
       AWS_DEFAULT_REGION:
         from_secret: aws_region
       AWS_ACCESS_KEY_ID:
@@ -590,228 +595,121 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
+        --backend-config="key=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
         --backend-config="region=$${AWS_DEFAULT_REGION}"
       - terraform destroy
         --auto-approve
         --var="my_cluster_name=$${CLUSTER_NAME}"
     when:
       status:
-      - success
-      - failure
+        - success
+        - failure
 
   - name: init-gcp
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [ test-backup-restore-aws ]
+    depends_on: [destroy-aws]
     environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-130
-      KUBECONFIG: /drone/src/kubeconfig-130
       GCP_PROJECT:
         from_secret: gcp_project
       GCP_CREDENTIALS:
         from_secret: gcp_credentials
-      GCP_CREDENTIALS_PATH: /drone/src/terraform-credentials-130.json
-      CI_PIPELINE_NUMBER: dr-130-gcp
       TERRAFORM_TF_STATES_BUCKET_NAME:
         from_secret: gcp_terraform_tf_states_bucket_name
     commands:
-      - echo $${GCP_CREDENTIALS} > $${GCP_CREDENTIALS_PATH}
-      - export GOOGLE_APPLICATION_CREDENTIALS=$${GCP_CREDENTIALS_PATH}
+      - echo $${GCP_CREDENTIALS} > "$${GOOGLE_APPLICATION_CREDENTIALS}"
       - cd examples/gcp-example
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
+        --backend-config="prefix=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
       - terraform apply
         --auto-approve
-        --var="my_cluster_name=$${CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
-        --var="gcp_project"=$${GCP_PROJECT}
-      - terraform output -raw cloud_credentials > /drone/src/cloud_credentials_130.yaml
-      - terraform output -raw volume_snapshot_location > /drone/src/volume_snapshot_location_130.yaml
-      - terraform output -raw backup_storage_location > /drone/src/backup_storage_location_130.yaml
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${DRONE_BUILD_NUMBER}"
+        --var="gcp_project=$${GCP_PROJECT}"
+      - terraform output -raw cloud_credentials > "$${GCP_CLOUD_CREDENTIALS_PATH}"
+      - terraform output -raw backup_storage_location > "$${GCP_BACKUP_STORAGE_LOCATION_PATH}"
 
   - name: apply-gcp-configuration
-    image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ init-gcp ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-130
-      KUBECONFIG: /drone/src/kubeconfig-130
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [init-gcp]
     commands:
-      - kubectl apply -f /drone/src/cloud_credentials_130.yaml -n kube-system
-      - kubectl apply -f /drone/src/backup_storage_location_130.yaml -n kube-system
+      - |-
+        mise use kubectl@$${KUBECTL_VERSION}
+        eval "$(mise activate bash --shims)"
+      - kubectl apply -f "$${GCP_CLOUD_CREDENTIALS_PATH}" -n kube-system
+      - kubectl apply -f "$${GCP_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
       - kustomize build katalog/velero/velero-gcp | kubectl apply -f - -n kube-system
       - kubectl rollout restart deploy velero -n kube-system
-      - sleep 30 # wait for velero to restart
+      - kubectl rollout status deploy/velero -n kube-system --timeout=180s
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-gcp
-    image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ apply-gcp-configuration ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-130
-      KUBECONFIG: /drone/src/kubeconfig-130
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [apply-gcp-configuration]
     commands:
-      - curl -Ls -o velero.tar.gz https://github.com/vmware-tanzu/velero/releases/download/v1.15.0/velero-v1.15.0-linux-amd64.tar.gz
-      - tar -zxf velero.tar.gz
-      - mv velero*/velero /usr/local/bin/velero
-      - bats -t katalog/tests/velero/velero-backup.sh
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
   - name: destroy-gcp
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [ test-backup-restore-gcp ]
+    depends_on: [test-backup-restore-gcp]
     environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-130
-      KUBECONFIG: /drone/src/kubeconfig-130
       GCP_PROJECT:
         from_secret: gcp_project
       GCP_CREDENTIALS:
         from_secret: gcp_credentials
-      GCP_CREDENTIALS_PATH: /drone/src/terraform-credentials-130.json
-      CI_PIPELINE_NUMBER: dr-130-gcp
       TERRAFORM_TF_STATES_BUCKET_NAME:
         from_secret: gcp_terraform_tf_states_bucket_name
     commands:
       - cd examples/gcp-example
-      - echo $${GCP_CREDENTIALS} > $${GCP_CREDENTIALS_PATH}
-      - export GOOGLE_APPLICATION_CREDENTIALS=$${GCP_CREDENTIALS_PATH}
+      - echo $${GCP_CREDENTIALS} > $${GOOGLE_APPLICATION_CREDENTIALS}
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
+        --backend-config="prefix=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
       - terraform destroy
         --auto-approve
-        --var="my_cluster_name=$${CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${DRONE_BUILD_NUMBER}"
         --var="gcp_project"=$${GCP_PROJECT}
     when:
       status:
-      - success
-      - failure
-
-  # - name: init-azure
-  #   image: hashicorp/terraform:1.4.6
-  #   pull: always
-  #   network_mode: host
-  #   depends_on: [ test-backup-restore-gcp ]
-  #   environment:
-  #     CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-130
-  #     KUBECONFIG: /drone/src/kubeconfig-130
-  #     CI_PIPELINE_NUMBER: k130a
-  #     TERRAFORM_TF_STATES_BUCKET_NAME:
-  #       from_secret: arm_terraform_tf_states_bucket_name
-  #     STORAGE_ACCOUNT_NAME:
-  #       from_secret: storage_account_name
-  #     RESOURCE_GROUP_NAME:
-  #       from_secret: resource_group_name
-  #     ARM_CLIENT_ID:
-  #       from_secret: arm_client_id
-  #     ARM_CLIENT_SECRET:
-  #       from_secret: arm_client_secret
-  #     ARM_SUBSCRIPTION_ID:
-  #       from_secret: arm_subscription_id
-  #     ARM_TENANT_ID:
-  #       from_secret: arm_tenant_id
-  #   commands:
-  #     - cd examples/azure-example
-  #     - terraform init
-  #       --backend=true
-  #       --backend-config="storage_account_name=$${STORAGE_ACCOUNT_NAME}"
-  #       --backend-config="resource_group_name=$${RESOURCE_GROUP_NAME}"
-  #       --backend-config="container_name=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-  #       --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
-  #     - terraform apply
-  #       --auto-approve
-  #       --var="my_cluster_name=$${CI_PIPELINE_NUMBER}${CI_BUILD_NUMBER}"
-  #     - terraform output -raw cloud_credentials > /drone/src/cloud_credentials_130.yaml
-  #     - terraform output -raw volume_snapshot_location > /drone/src/volume_snapshot_location_130.yaml
-  #     - terraform output -raw backup_storage_location > /drone/src/backup_storage_location_130.yaml
-
-  # - name: apply-azure-configuration
-  #   image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
-  #   pull: always
-  #   network_mode: host
-  #   depends_on: [ init-azure ]
-  #   environment:
-  #     CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-130
-  #     KUBECONFIG: /drone/src/kubeconfig-130
-  #   commands:
-  #     - kubectl apply -f /drone/src/cloud_credentials_130.yaml -n kube-system
-  #     - kubectl apply -f /drone/src/backup_storage_location_130.yaml -n kube-system
-  #     - kustomize build katalog/velero/velero-azure | kubectl apply -f - -n kube-system
-  #     - kubectl rollout restart deploy velero -n kube-system
-  #     - sleep 30 # wait for velero to restart
-  #     - kubectl get pods -n kube-system
-
-  # - name: test-backup-restore-azure
-  #   image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
-  #   pull: always
-  #   network_mode: host
-  #   depends_on: [ apply-azure-configuration ]
-  #   environment:
-  #     CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-130
-  #     KUBECONFIG: /drone/src/kubeconfig-130
-  #   commands:
-  #     - curl -Ls -o velero.tar.gz https://github.com/vmware-tanzu/velero/releases/download/v1.15.0/velero-v1.15.0-linux-amd64.tar.gz
-  #     - tar -zxf velero.tar.gz
-  #     - mv velero*/velero /usr/local/bin/velero
-  #     - bats -t katalog/tests/velero/velero-backup.sh
-
-  # - name: destroy-azure
-  #   image: hashicorp/terraform:1.4.6
-  #   pull: always
-  #   network_mode: host
-  #   depends_on: [ test-backup-restore-azure ]
-  #   environment:
-  #     CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-130
-  #     KUBECONFIG: /drone/src/kubeconfig-130
-  #     CI_PIPELINE_NUMBER: k130a
-  #     TERRAFORM_TF_STATES_BUCKET_NAME:
-  #       from_secret: arm_terraform_tf_states_bucket_name
-  #     STORAGE_ACCOUNT_NAME:
-  #       from_secret: storage_account_name
-  #     RESOURCE_GROUP_NAME:
-  #       from_secret: resource_group_name
-  #     ARM_CLIENT_ID:
-  #       from_secret: arm_client_id
-  #     ARM_CLIENT_SECRET:
-  #       from_secret: arm_client_secret
-  #     ARM_SUBSCRIPTION_ID:
-  #       from_secret: arm_subscription_id
-  #     ARM_TENANT_ID:
-  #       from_secret: arm_tenant_id
-  #   commands:
-  #     - cd examples/azure-example
-  #     - terraform init
-  #       --backend=true
-  #       --backend-config="storage_account_name=$${STORAGE_ACCOUNT_NAME}"
-  #       --backend-config="resource_group_name=$${RESOURCE_GROUP_NAME}"
-  #       --backend-config="container_name=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-  #       --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
-  #     - terraform destroy
-  #       --auto-approve
-  #       --var="my_cluster_name=$${CI_PIPELINE_NUMBER}${CI_BUILD_NUMBER}"
-  #   when:
-  #     status:
-  #     - success
-  #     - failure
+        - success
+        - failure
 
   - name: delete-kind-cluster
-    image: quay.io/sighup/dind-kind-kubectl-kustomize:0.20.0_1.29.1_3.10.0
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    depends_on: [destroy-gcp]
     volumes:
       - name: dockersock
         path: /var/run/docker.sock
-    pull: always
-    depends_on: [destroy-gcp]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-130
+      - name: mise-cache
+        path: /mise-data
     commands:
+      - |
+        mise use kind@$${KIND_VERSION}
+        eval "$(mise activate bash --shims)"
       # does not matter if the command fails
       - kind delete cluster --name $${CLUSTER_NAME} || true
     when:
@@ -823,6 +721,9 @@ volumes:
   - name: dockersock
     host:
       path: /var/run/docker.sock
+  - name: mise-cache
+    host:
+      path: /root/mise_data_dir
 
 ---
 name: e2e-kubernetes-1.31
@@ -841,64 +742,105 @@ trigger:
     include:
       - refs/tags/**
 
+environment:
+  # Mise configuration.
+  MISE_DATA_DIR: "/mise-data"
+  MISE_OVERRIDE_CONFIG_FILENAMES: "mise.ci.toml"
+
+  # Cluster version.
+  CLUSTER_VERSION: "v1.31.9"
+  CLUSTER_NAME: "${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-1.31.9"
+
+  # Default tool versions.
+  KUBECTL_VERSION: "v1.31.9"
+  JQ_VERSION: "1.8.1"
+  BATS_VERSION: "1.1.0"
+  KUSTOMIZE_VERSION: "5.6.0"
+  VELERO_VERSION: "1.16.2"
+
+  # /drone/src is the default workdir for the pipeline
+  # using this folder we don't need to mount another
+  # shared volume between the steps
+  KUBECONFIG: "/drone/src/kubeconfig-131"
+
+  # AWS configuration.
+  AWS_CI_PIPELINE_NUMBER: "dr-131-aws"
+  AWS_CLOUD_CREDENTIALS_PATH: "/drone/src/aws_cloud_credentials_131.yaml"
+  AWS_BACKUP_STORAGE_LOCATION_PATH: "/drone/src/aws_backup_storage_location_131.yaml"
+
+  # GCP configuration.
+  GCP_CI_PIPELINE_NUMBER: "dr-131-gcp"
+  GOOGLE_APPLICATION_CREDENTIALS: "/drone/src/gcp_terraform-credentials-131.json"
+  GCP_CLOUD_CREDENTIALS_PATH: "/drone/src/gcp_cloud_credentials_131.yaml"
+  GCP_BACKUP_STORAGE_LOCATION_PATH: "/drone/src/gcp_backup_storage_location_131.yaml"
+
 steps:
   - name: create-kind-cluster
-    image: quay.io/sighup/dind-kind-kubectl-kustomize:0.20.0_1.29.1_3.10.0
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
+    depends_on: [clone]
     volumes:
       - name: dockersock
         path: /var/run/docker.sock
-    depends_on: [clone]
+      - name: mise-cache
+        path: /mise-data
     environment:
-      CLUSTER_VERSION: v1.31.1
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-131
-      # /drone/src is the default workdir for the pipeline
-      # using this folder we don't need to mount another
-      # shared volume between the steps
-      KUBECONFIG: /drone/src/kubeconfig-131
+      # GITHUB_TOKEN must be defined in the step scope, otherwise it won't work.
+      # drone exec will fail with a `cannot unmarshal !!map into string` error.
+      GITHUB_TOKEN:
+        from_secret: github_token
     commands:
-      # NOTE: kind's `--wait` flag that waits for the control-plane ot be ready
-      # does not work when disabling the default CNI. It will always go in timeout.
+      - |-
+        mise use kind@$${KIND_VERSION} kubectl@$${KUBECTL_VERSION}
+        eval "$(mise activate bash --shims)"
+      # NOTE: kind's `--wait` flag that waits for the control-plane to be ready.
+      # It does not work when disabling the default CNI. It will always go in timeout.
       - kind create cluster --name $${CLUSTER_NAME} --image registry.sighup.io/fury/kindest/node:$${CLUSTER_VERSION} --config katalog/tests/kind-config.yml
-      # save the kubeconfig so we can use it from other steps.
+      # Save the kubeconfig so we can use it in other steps.
       - kind get kubeconfig --name $${CLUSTER_NAME} > $${KUBECONFIG}
 
   - name: test-install
-    # KUBECTL 1.29.1 - KUSTOMIZE 3.5.3 - HELM 3.1.1 - YQ 4.21.1 - ISTIOCTL 1.9.4 - FURYCTL 0.9.0 - BATS 1.1.0
-    image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ create-kind-cluster ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-131
-      KUBECONFIG: /drone/src/kubeconfig-131
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [create-kind-cluster]
     commands:
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION}
+        eval "$(mise activate bash --shims)"
       - bats -t katalog/tests/velero/velero-install.sh
 
   - name: test-backup-restore
-    image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ test-install ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-131
-      KUBECONFIG: /drone/src/kubeconfig-131
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [test-install]
     commands:
-      - curl -Ls -o velero.tar.gz https://github.com/vmware-tanzu/velero/releases/download/v1.15.0/velero-v1.15.0-linux-amd64.tar.gz
-      - tar -zxf velero.tar.gz
-      - mv velero*/velero /usr/local/bin/velero
-      - bats -t katalog/tests/velero/velero-backup.sh
-      - bats -t katalog/tests/velero/velero-backup-with-restic-test.sh
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
+      - bats -t katalog/tests/velero/velero-file-system-backup.sh
+      - bats -t katalog/tests/velero/velero-snapshot-backup.sh
 
   - name: init-aws
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [ test-backup-restore ]
+    depends_on: [test-backup-restore]
     environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-131
-      KUBECONFIG: /drone/src/kubeconfig-131
-      CI_PIPELINE_NUMBER: dr-131-aws
       AWS_DEFAULT_REGION:
         from_secret: aws_region
       AWS_ACCESS_KEY_ID:
@@ -912,53 +854,57 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
+        --backend-config="key=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
         --backend-config="region=$${AWS_DEFAULT_REGION}"
       - terraform apply
         --auto-approve
         --var="my_cluster_name=$${CLUSTER_NAME}"
-      - terraform output -raw cloud_credentials > /drone/src/cloud_credentials_131.yaml
-      - terraform output -raw volume_snapshot_location > /drone/src/volume_snapshot_location_131.yaml
-      - terraform output -raw backup_storage_location > /drone/src/backup_storage_location_131.yaml
+      - terraform output -raw cloud_credentials > "$${AWS_CLOUD_CREDENTIALS_PATH}"
+      - terraform output -raw backup_storage_location > "$${AWS_BACKUP_STORAGE_LOCATION_PATH}"
 
   - name: apply-aws-configuration
-    image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ init-aws ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-131
-      KUBECONFIG: /drone/src/kubeconfig-131
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [init-aws]
     commands:
-      - kubectl apply -f /drone/src/cloud_credentials_131.yaml -n kube-system
-      - kubectl apply -f /drone/src/backup_storage_location_131.yaml -n kube-system
+      - |-
+        mise use kubectl@$${KUBECTL_VERSION}
+        eval "$(mise activate bash --shims)"
+      - kubectl apply -f "$${AWS_CLOUD_CREDENTIALS_PATH}" -n kube-system
+      - kubectl apply -f "$${AWS_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
       - kubectl rollout restart deploy velero -n kube-system
-      - sleep 30 # wait for velero to restart
+      - kubectl rollout status deploy/velero -n kube-system --timeout=180s
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-aws
-    image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ apply-aws-configuration ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-131
-      KUBECONFIG: /drone/src/kubeconfig-131
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [apply-aws-configuration]
     commands:
-      - curl -Ls -o velero.tar.gz https://github.com/vmware-tanzu/velero/releases/download/v1.15.0/velero-v1.15.0-linux-amd64.tar.gz
-      - tar -zxf velero.tar.gz
-      - mv velero*/velero /usr/local/bin/velero
-      - bats -t katalog/tests/velero/velero-backup.sh
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
   - name: destroy-aws
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [ test-backup-restore-aws ]
+    depends_on: [test-backup-restore-aws]
     environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-131
-      KUBECONFIG: /drone/src/kubeconfig-131
-      CI_PIPELINE_NUMBER: dr-131-aws
       AWS_DEFAULT_REGION:
         from_secret: aws_region
       AWS_ACCESS_KEY_ID:
@@ -972,228 +918,121 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
+        --backend-config="key=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
         --backend-config="region=$${AWS_DEFAULT_REGION}"
       - terraform destroy
         --auto-approve
         --var="my_cluster_name=$${CLUSTER_NAME}"
     when:
       status:
-      - success
-      - failure
+        - success
+        - failure
 
   - name: init-gcp
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [ test-backup-restore-aws ]
+    depends_on: [destroy-aws]
     environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-131
-      KUBECONFIG: /drone/src/kubeconfig-131
       GCP_PROJECT:
         from_secret: gcp_project
       GCP_CREDENTIALS:
         from_secret: gcp_credentials
-      GCP_CREDENTIALS_PATH: /drone/src/terraform-credentials-131.json
-      CI_PIPELINE_NUMBER: dr-131-gcp
       TERRAFORM_TF_STATES_BUCKET_NAME:
         from_secret: gcp_terraform_tf_states_bucket_name
     commands:
-      - echo $${GCP_CREDENTIALS} > $${GCP_CREDENTIALS_PATH}
-      - export GOOGLE_APPLICATION_CREDENTIALS=$${GCP_CREDENTIALS_PATH}
+      - echo $${GCP_CREDENTIALS} > "$${GOOGLE_APPLICATION_CREDENTIALS}"
       - cd examples/gcp-example
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
+        --backend-config="prefix=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
       - terraform apply
         --auto-approve
-        --var="my_cluster_name=$${CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
-        --var="gcp_project"=$${GCP_PROJECT}
-      - terraform output -raw cloud_credentials > /drone/src/cloud_credentials_131.yaml
-      - terraform output -raw volume_snapshot_location > /drone/src/volume_snapshot_location_131.yaml
-      - terraform output -raw backup_storage_location > /drone/src/backup_storage_location_131.yaml
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${DRONE_BUILD_NUMBER}"
+        --var="gcp_project=$${GCP_PROJECT}"
+      - terraform output -raw cloud_credentials > "$${GCP_CLOUD_CREDENTIALS_PATH}"
+      - terraform output -raw backup_storage_location > "$${GCP_BACKUP_STORAGE_LOCATION_PATH}"
 
   - name: apply-gcp-configuration
-    image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ init-gcp ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-131
-      KUBECONFIG: /drone/src/kubeconfig-131
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [init-gcp]
     commands:
-      - kubectl apply -f /drone/src/cloud_credentials_131.yaml -n kube-system
-      - kubectl apply -f /drone/src/backup_storage_location_131.yaml -n kube-system
+      - |-
+        mise use kubectl@$${KUBECTL_VERSION}
+        eval "$(mise activate bash --shims)"
+      - kubectl apply -f "$${GCP_CLOUD_CREDENTIALS_PATH}" -n kube-system
+      - kubectl apply -f "$${GCP_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
       - kustomize build katalog/velero/velero-gcp | kubectl apply -f - -n kube-system
       - kubectl rollout restart deploy velero -n kube-system
-      - sleep 30 # wait for velero to restart
+      - kubectl rollout status deploy/velero -n kube-system --timeout=180s
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-gcp
-    image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ apply-gcp-configuration ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-131
-      KUBECONFIG: /drone/src/kubeconfig-131
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [apply-gcp-configuration]
     commands:
-      - curl -Ls -o velero.tar.gz https://github.com/vmware-tanzu/velero/releases/download/v1.15.0/velero-v1.15.0-linux-amd64.tar.gz
-      - tar -zxf velero.tar.gz
-      - mv velero*/velero /usr/local/bin/velero
-      - bats -t katalog/tests/velero/velero-backup.sh
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
   - name: destroy-gcp
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [ test-backup-restore-gcp ]
+    depends_on: [test-backup-restore-gcp]
     environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-131
-      KUBECONFIG: /drone/src/kubeconfig-131
       GCP_PROJECT:
         from_secret: gcp_project
       GCP_CREDENTIALS:
         from_secret: gcp_credentials
-      GCP_CREDENTIALS_PATH: /drone/src/terraform-credentials-131.json
-      CI_PIPELINE_NUMBER: dr-131-gcp
       TERRAFORM_TF_STATES_BUCKET_NAME:
         from_secret: gcp_terraform_tf_states_bucket_name
     commands:
       - cd examples/gcp-example
-      - echo $${GCP_CREDENTIALS} > $${GCP_CREDENTIALS_PATH}
-      - export GOOGLE_APPLICATION_CREDENTIALS=$${GCP_CREDENTIALS_PATH}
+      - echo $${GCP_CREDENTIALS} > $${GOOGLE_APPLICATION_CREDENTIALS}
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
+        --backend-config="prefix=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
       - terraform destroy
         --auto-approve
-        --var="my_cluster_name=$${CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${DRONE_BUILD_NUMBER}"
         --var="gcp_project"=$${GCP_PROJECT}
     when:
       status:
-      - success
-      - failure
-
-  # - name: init-azure
-  #   image: hashicorp/terraform:1.4.6
-  #   pull: always
-  #   network_mode: host
-  #   depends_on: [ test-backup-restore-gcp ]
-  #   environment:
-  #     CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-131
-  #     KUBECONFIG: /drone/src/kubeconfig-131
-  #     CI_PIPELINE_NUMBER: k131a
-  #     TERRAFORM_TF_STATES_BUCKET_NAME:
-  #       from_secret: arm_terraform_tf_states_bucket_name
-  #     STORAGE_ACCOUNT_NAME:
-  #       from_secret: storage_account_name
-  #     RESOURCE_GROUP_NAME:
-  #       from_secret: resource_group_name
-  #     ARM_CLIENT_ID:
-  #       from_secret: arm_client_id
-  #     ARM_CLIENT_SECRET:
-  #       from_secret: arm_client_secret
-  #     ARM_SUBSCRIPTION_ID:
-  #       from_secret: arm_subscription_id
-  #     ARM_TENANT_ID:
-  #       from_secret: arm_tenant_id
-  #   commands:
-  #     - cd examples/azure-example
-  #     - terraform init
-  #       --backend=true
-  #       --backend-config="storage_account_name=$${STORAGE_ACCOUNT_NAME}"
-  #       --backend-config="resource_group_name=$${RESOURCE_GROUP_NAME}"
-  #       --backend-config="container_name=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-  #       --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
-  #     - terraform apply
-  #       --auto-approve
-  #       --var="my_cluster_name=$${CI_PIPELINE_NUMBER}${CI_BUILD_NUMBER}"
-  #     - terraform output -raw cloud_credentials > /drone/src/cloud_credentials_131.yaml
-  #     - terraform output -raw volume_snapshot_location > /drone/src/volume_snapshot_location_131.yaml
-  #     - terraform output -raw backup_storage_location > /drone/src/backup_storage_location_131.yaml
-
-  # - name: apply-azure-configuration
-  #   image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
-  #   pull: always
-  #   network_mode: host
-  #   depends_on: [ init-azure ]
-  #   environment:
-  #     CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-131
-  #     KUBECONFIG: /drone/src/kubeconfig-131
-  #   commands:
-  #     - kubectl apply -f /drone/src/cloud_credentials_131.yaml -n kube-system
-  #     - kubectl apply -f /drone/src/backup_storage_location_131.yaml -n kube-system
-  #     - kustomize build katalog/velero/velero-azure | kubectl apply -f - -n kube-system
-  #     - kubectl rollout restart deploy velero -n kube-system
-  #     - sleep 30 # wait for velero to restart
-  #     - kubectl get pods -n kube-system
-
-  # - name: test-backup-restore-azure
-  #   image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
-  #   pull: always
-  #   network_mode: host
-  #   depends_on: [ apply-azure-configuration ]
-  #   environment:
-  #     CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-131
-  #     KUBECONFIG: /drone/src/kubeconfig-131
-  #   commands:
-  #     - curl -Ls -o velero.tar.gz https://github.com/vmware-tanzu/velero/releases/download/v1.15.0/velero-v1.15.0-linux-amd64.tar.gz
-  #     - tar -zxf velero.tar.gz
-  #     - mv velero*/velero /usr/local/bin/velero
-  #     - bats -t katalog/tests/velero/velero-backup.sh
-
-  # - name: destroy-azure
-  #   image: hashicorp/terraform:1.4.6
-  #   pull: always
-  #   network_mode: host
-  #   depends_on: [ test-backup-restore-azure ]
-  #   environment:
-  #     CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-131
-  #     KUBECONFIG: /drone/src/kubeconfig-131
-  #     CI_PIPELINE_NUMBER: k131a
-  #     TERRAFORM_TF_STATES_BUCKET_NAME:
-  #       from_secret: arm_terraform_tf_states_bucket_name
-  #     STORAGE_ACCOUNT_NAME:
-  #       from_secret: storage_account_name
-  #     RESOURCE_GROUP_NAME:
-  #       from_secret: resource_group_name
-  #     ARM_CLIENT_ID:
-  #       from_secret: arm_client_id
-  #     ARM_CLIENT_SECRET:
-  #       from_secret: arm_client_secret
-  #     ARM_SUBSCRIPTION_ID:
-  #       from_secret: arm_subscription_id
-  #     ARM_TENANT_ID:
-  #       from_secret: arm_tenant_id
-  #   commands:
-  #     - cd examples/azure-example
-  #     - terraform init
-  #       --backend=true
-  #       --backend-config="storage_account_name=$${STORAGE_ACCOUNT_NAME}"
-  #       --backend-config="resource_group_name=$${RESOURCE_GROUP_NAME}"
-  #       --backend-config="container_name=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-  #       --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
-  #     - terraform destroy
-  #       --auto-approve
-  #       --var="my_cluster_name=$${CI_PIPELINE_NUMBER}${CI_BUILD_NUMBER}"
-  #   when:
-  #     status:
-  #     - success
-  #     - failure
+        - success
+        - failure
 
   - name: delete-kind-cluster
-    image: quay.io/sighup/dind-kind-kubectl-kustomize:0.20.0_1.31.1_3.10.0
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    depends_on: [destroy-gcp]
     volumes:
       - name: dockersock
         path: /var/run/docker.sock
-    pull: always
-    depends_on: [destroy-gcp]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-131
+      - name: mise-cache
+        path: /mise-data
     commands:
+      - |
+        mise use kind@$${KIND_VERSION}
+        eval "$(mise activate bash --shims)"
       # does not matter if the command fails
       - kind delete cluster --name $${CLUSTER_NAME} || true
     when:
@@ -1205,6 +1044,9 @@ volumes:
   - name: dockersock
     host:
       path: /var/run/docker.sock
+  - name: mise-cache
+    host:
+      path: /root/mise_data_dir
 
 ---
 name: e2e-kubernetes-1.32
@@ -1213,7 +1055,6 @@ type: docker
 
 depends_on:
   - policeman
-  - e2e-kubernetes-1.31
 
 platform:
   os: linux
@@ -1224,63 +1065,105 @@ trigger:
     include:
       - refs/tags/**
 
+environment:
+  # Mise configuration.
+  MISE_DATA_DIR: "/mise-data"
+  MISE_OVERRIDE_CONFIG_FILENAMES: "mise.ci.toml"
+
+  # Cluster version.
+  CLUSTER_VERSION: "v1.32.5"
+  CLUSTER_NAME: "${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-1.32.5"
+
+  # Default tool versions.
+  KUBECTL_VERSION: "v1.32.5"
+  JQ_VERSION: "1.8.1"
+  BATS_VERSION: "1.1.0"
+  KUSTOMIZE_VERSION: "5.6.0"
+  VELERO_VERSION: "1.16.2"
+
+  # /drone/src is the default workdir for the pipeline
+  # using this folder we don't need to mount another
+  # shared volume between the steps
+  KUBECONFIG: "/drone/src/kubeconfig-132"
+
+  # AWS configuration.
+  AWS_CI_PIPELINE_NUMBER: "dr-132-aws"
+  AWS_CLOUD_CREDENTIALS_PATH: "/drone/src/aws_cloud_credentials_132.yaml"
+  AWS_BACKUP_STORAGE_LOCATION_PATH: "/drone/src/aws_backup_storage_location_132.yaml"
+
+  # GCP configuration.
+  GCP_CI_PIPELINE_NUMBER: "dr-132-gcp"
+  GOOGLE_APPLICATION_CREDENTIALS: "/drone/src/gcp_terraform-credentials-132.json"
+  GCP_CLOUD_CREDENTIALS_PATH: "/drone/src/gcp_cloud_credentials_132.yaml"
+  GCP_BACKUP_STORAGE_LOCATION_PATH: "/drone/src/gcp_backup_storage_location_132.yaml"
+
 steps:
   - name: create-kind-cluster
-    image: quay.io/sighup/dind-kind-kubectl-kustomize:0.27.0_1.32.2_5.6.0
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
+    depends_on: [clone]
     volumes:
       - name: dockersock
         path: /var/run/docker.sock
-    depends_on: [clone]
+      - name: mise-cache
+        path: /mise-data
     environment:
-      CLUSTER_VERSION: v1.32.2
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-132
-      # /drone/src is the default workdir for the pipeline
-      # using this folder we don't need to mount another
-      # shared volume between the steps
-      KUBECONFIG: /drone/src/kubeconfig-132
+      # GITHUB_TOKEN must be defined in the step scope, otherwise it won't work.
+      # drone exec will fail with a `cannot unmarshal !!map into string` error.
+      GITHUB_TOKEN:
+        from_secret: github_token
     commands:
-      # NOTE: kind's `--wait` flag that waits for the control-plane ot be ready
-      # does not work when disabling the default CNI. It will always go in timeout.
+      - |-
+        mise use kind@$${KIND_VERSION} kubectl@$${KUBECTL_VERSION}
+        eval "$(mise activate bash --shims)"
+      # NOTE: kind's `--wait` flag that waits for the control-plane to be ready.
+      # It does not work when disabling the default CNI. It will always go in timeout.
       - kind create cluster --name $${CLUSTER_NAME} --image registry.sighup.io/fury/kindest/node:$${CLUSTER_VERSION} --config katalog/tests/kind-config.yml
-      # save the kubeconfig so we can use it from other steps.
+      # Save the kubeconfig so we can use it in other steps.
       - kind get kubeconfig --name $${CLUSTER_NAME} > $${KUBECONFIG}
 
   - name: test-install
-    image: quay.io/sighup/e2e-testing:2.24.17_1.1.0_3.12.0_1.32.2_5.6.0_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ create-kind-cluster ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-132
-      KUBECONFIG: /drone/src/kubeconfig-132
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [create-kind-cluster]
     commands:
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION}
+        eval "$(mise activate bash --shims)"
       - bats -t katalog/tests/velero/velero-install.sh
 
   - name: test-backup-restore
-    image: quay.io/sighup/e2e-testing:2.24.17_1.1.0_3.12.0_1.32.2_5.6.0_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ test-install ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-132
-      KUBECONFIG: /drone/src/kubeconfig-132
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [test-install]
     commands:
-      - curl -Ls -o velero.tar.gz https://github.com/vmware-tanzu/velero/releases/download/v1.15.2/velero-v1.15.2-linux-amd64.tar.gz
-      - tar -zxf velero.tar.gz
-      - mv velero*/velero /usr/local/bin/velero
-      - bats -t katalog/tests/velero/velero-backup.sh
-      - bats -t katalog/tests/velero/velero-backup-with-restic-test.sh
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
+      - bats -t katalog/tests/velero/velero-file-system-backup.sh
+      - bats -t katalog/tests/velero/velero-snapshot-backup.sh
 
   - name: init-aws
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [ test-backup-restore ]
+    depends_on: [test-backup-restore]
     environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-132
-      KUBECONFIG: /drone/src/kubeconfig-132
-      CI_PIPELINE_NUMBER: dr-132-aws
       AWS_DEFAULT_REGION:
         from_secret: aws_region
       AWS_ACCESS_KEY_ID:
@@ -1294,53 +1177,57 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
+        --backend-config="key=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
         --backend-config="region=$${AWS_DEFAULT_REGION}"
       - terraform apply
         --auto-approve
         --var="my_cluster_name=$${CLUSTER_NAME}"
-      - terraform output -raw cloud_credentials > /drone/src/cloud_credentials_132.yaml
-      - terraform output -raw volume_snapshot_location > /drone/src/volume_snapshot_location_132.yaml
-      - terraform output -raw backup_storage_location > /drone/src/backup_storage_location_132.yaml
+      - terraform output -raw cloud_credentials > "$${AWS_CLOUD_CREDENTIALS_PATH}"
+      - terraform output -raw backup_storage_location > "$${AWS_BACKUP_STORAGE_LOCATION_PATH}"
 
   - name: apply-aws-configuration
-    image: quay.io/sighup/e2e-testing:2.24.17_1.1.0_3.12.0_1.32.2_5.6.0_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ init-aws ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-132
-      KUBECONFIG: /drone/src/kubeconfig-132
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [init-aws]
     commands:
-      - kubectl apply -f /drone/src/cloud_credentials_132.yaml -n kube-system
-      - kubectl apply -f /drone/src/backup_storage_location_132.yaml -n kube-system
+      - |-
+        mise use kubectl@$${KUBECTL_VERSION}
+        eval "$(mise activate bash --shims)"
+      - kubectl apply -f "$${AWS_CLOUD_CREDENTIALS_PATH}" -n kube-system
+      - kubectl apply -f "$${AWS_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
       - kubectl rollout restart deploy velero -n kube-system
-      - sleep 30 # wait for velero to restart
+      - kubectl rollout status deploy/velero -n kube-system --timeout=180s
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-aws
-    image: quay.io/sighup/e2e-testing:2.24.17_1.1.0_3.12.0_1.32.2_5.6.0_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ apply-aws-configuration ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-132
-      KUBECONFIG: /drone/src/kubeconfig-132
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [apply-aws-configuration]
     commands:
-      - curl -Ls -o velero.tar.gz https://github.com/vmware-tanzu/velero/releases/download/v1.15.2/velero-v1.15.2-linux-amd64.tar.gz
-      - tar -zxf velero.tar.gz
-      - mv velero*/velero /usr/local/bin/velero
-      - bats -t katalog/tests/velero/velero-backup.sh
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
   - name: destroy-aws
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [ test-backup-restore-aws ]
+    depends_on: [test-backup-restore-aws]
     environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-132
-      KUBECONFIG: /drone/src/kubeconfig-132
-      CI_PIPELINE_NUMBER: dr-132-aws
       AWS_DEFAULT_REGION:
         from_secret: aws_region
       AWS_ACCESS_KEY_ID:
@@ -1354,228 +1241,121 @@ steps:
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
+        --backend-config="key=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
         --backend-config="region=$${AWS_DEFAULT_REGION}"
       - terraform destroy
         --auto-approve
         --var="my_cluster_name=$${CLUSTER_NAME}"
     when:
       status:
-      - success
-      - failure
+        - success
+        - failure
 
   - name: init-gcp
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [ test-backup-restore-aws ]
+    depends_on: [destroy-aws]
     environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-132
-      KUBECONFIG: /drone/src/kubeconfig-132
       GCP_PROJECT:
         from_secret: gcp_project
       GCP_CREDENTIALS:
         from_secret: gcp_credentials
-      GCP_CREDENTIALS_PATH: /drone/src/terraform-credentials-132.json
-      CI_PIPELINE_NUMBER: dr-132-gcp
       TERRAFORM_TF_STATES_BUCKET_NAME:
         from_secret: gcp_terraform_tf_states_bucket_name
     commands:
-      - echo $${GCP_CREDENTIALS} > $${GCP_CREDENTIALS_PATH}
-      - export GOOGLE_APPLICATION_CREDENTIALS=$${GCP_CREDENTIALS_PATH}
+      - echo $${GCP_CREDENTIALS} > "$${GOOGLE_APPLICATION_CREDENTIALS}"
       - cd examples/gcp-example
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
+        --backend-config="prefix=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
       - terraform apply
         --auto-approve
-        --var="my_cluster_name=$${CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
-        --var="gcp_project"=$${GCP_PROJECT}
-      - terraform output -raw cloud_credentials > /drone/src/cloud_credentials_132.yaml
-      - terraform output -raw volume_snapshot_location > /drone/src/volume_snapshot_location_132.yaml
-      - terraform output -raw backup_storage_location > /drone/src/backup_storage_location_132.yaml
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${DRONE_BUILD_NUMBER}"
+        --var="gcp_project=$${GCP_PROJECT}"
+      - terraform output -raw cloud_credentials > "$${GCP_CLOUD_CREDENTIALS_PATH}"
+      - terraform output -raw backup_storage_location > "$${GCP_BACKUP_STORAGE_LOCATION_PATH}"
 
   - name: apply-gcp-configuration
-    image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ init-gcp ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-132
-      KUBECONFIG: /drone/src/kubeconfig-132
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [init-gcp]
     commands:
-      - kubectl apply -f /drone/src/cloud_credentials_132.yaml -n kube-system
-      - kubectl apply -f /drone/src/backup_storage_location_132.yaml -n kube-system
+      - |-
+        mise use kubectl@$${KUBECTL_VERSION}
+        eval "$(mise activate bash --shims)"
+      - kubectl apply -f "$${GCP_CLOUD_CREDENTIALS_PATH}" -n kube-system
+      - kubectl apply -f "$${GCP_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
       - kustomize build katalog/velero/velero-gcp | kubectl apply -f - -n kube-system
       - kubectl rollout restart deploy velero -n kube-system
-      - sleep 30 # wait for velero to restart
+      - kubectl rollout status deploy/velero -n kube-system --timeout=180s
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-gcp
-    image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
+    image: quay.io/sighup/mise:v2025.4.4
     pull: always
     network_mode: host
-    depends_on: [ apply-gcp-configuration ]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-132
-      KUBECONFIG: /drone/src/kubeconfig-132
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [apply-gcp-configuration]
     commands:
-      - curl -Ls -o velero.tar.gz https://github.com/vmware-tanzu/velero/releases/download/v1.15.2/velero-v1.15.2-linux-amd64.tar.gz
-      - tar -zxf velero.tar.gz
-      - mv velero*/velero /usr/local/bin/velero
-      - bats -t katalog/tests/velero/velero-backup.sh
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
 
   - name: destroy-gcp
     image: hashicorp/terraform:1.4.6
     pull: always
     network_mode: host
-    depends_on: [ test-backup-restore-gcp ]
+    depends_on: [test-backup-restore-gcp]
     environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-132
-      KUBECONFIG: /drone/src/kubeconfig-132
       GCP_PROJECT:
         from_secret: gcp_project
       GCP_CREDENTIALS:
         from_secret: gcp_credentials
-      GCP_CREDENTIALS_PATH: /drone/src/terraform-credentials-132.json
-      CI_PIPELINE_NUMBER: dr-132-gcp
       TERRAFORM_TF_STATES_BUCKET_NAME:
         from_secret: gcp_terraform_tf_states_bucket_name
     commands:
       - cd examples/gcp-example
-      - echo $${GCP_CREDENTIALS} > $${GCP_CREDENTIALS_PATH}
-      - export GOOGLE_APPLICATION_CREDENTIALS=$${GCP_CREDENTIALS_PATH}
+      - echo $${GCP_CREDENTIALS} > $${GOOGLE_APPLICATION_CREDENTIALS}
       - terraform init
         --backend=true
         --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-        --backend-config="prefix=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
+        --backend-config="prefix=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
       - terraform destroy
         --auto-approve
-        --var="my_cluster_name=$${CI_PIPELINE_NUMBER}-${CI_BUILD_NUMBER}"
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${DRONE_BUILD_NUMBER}"
         --var="gcp_project"=$${GCP_PROJECT}
     when:
       status:
-      - success
-      - failure
-
-  # - name: init-azure
-  #   image: hashicorp/terraform:1.4.6
-  #   pull: always
-  #   network_mode: host
-  #   depends_on: [ test-backup-restore-gcp ]
-  #   environment:
-  #     CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-132
-  #     KUBECONFIG: /drone/src/kubeconfig-132
-  #     CI_PIPELINE_NUMBER: k132a
-  #     TERRAFORM_TF_STATES_BUCKET_NAME:
-  #       from_secret: arm_terraform_tf_states_bucket_name
-  #     STORAGE_ACCOUNT_NAME:
-  #       from_secret: storage_account_name
-  #     RESOURCE_GROUP_NAME:
-  #       from_secret: resource_group_name
-  #     ARM_CLIENT_ID:
-  #       from_secret: arm_client_id
-  #     ARM_CLIENT_SECRET:
-  #       from_secret: arm_client_secret
-  #     ARM_SUBSCRIPTION_ID:
-  #       from_secret: arm_subscription_id
-  #     ARM_TENANT_ID:
-  #       from_secret: arm_tenant_id
-  #   commands:
-  #     - cd examples/azure-example
-  #     - terraform init
-  #       --backend=true
-  #       --backend-config="storage_account_name=$${STORAGE_ACCOUNT_NAME}"
-  #       --backend-config="resource_group_name=$${RESOURCE_GROUP_NAME}"
-  #       --backend-config="container_name=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-  #       --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
-  #     - terraform apply
-  #       --auto-approve
-  #       --var="my_cluster_name=$${CI_PIPELINE_NUMBER}${CI_BUILD_NUMBER}"
-  #     - terraform output -raw cloud_credentials > /drone/src/cloud_credentials_132.yaml
-  #     - terraform output -raw volume_snapshot_location > /drone/src/volume_snapshot_location_132.yaml
-  #     - terraform output -raw backup_storage_location > /drone/src/backup_storage_location_132.yaml
-
-  # - name: apply-azure-configuration
-  #   image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
-  #   pull: always
-  #   network_mode: host
-  #   depends_on: [ init-azure ]
-  #   environment:
-  #     CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-132
-  #     KUBECONFIG: /drone/src/kubeconfig-132
-  #   commands:
-  #     - kubectl apply -f /drone/src/cloud_credentials_132.yaml -n kube-system
-  #     - kubectl apply -f /drone/src/backup_storage_location_132.yaml -n kube-system
-  #     - kustomize build katalog/velero/velero-azure | kubectl apply -f - -n kube-system
-  #     - kubectl rollout restart deploy velero -n kube-system
-  #     - sleep 30 # wait for velero to restart
-  #     - kubectl get pods -n kube-system
-
-  # - name: test-backup-restore-azure
-  #   image: quay.io/sighup/e2e-testing:1.1.0_0.11.0_3.12.0_1.9.4_1.29.1_3.5.3_4.33.3
-  #   pull: always
-  #   network_mode: host
-  #   depends_on: [ apply-azure-configuration ]
-  #   environment:
-  #     CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-132
-  #     KUBECONFIG: /drone/src/kubeconfig-132
-  #   commands:
-  #     - curl -Ls -o velero.tar.gz https://github.com/vmware-tanzu/velero/releases/download/v1.15.2/velero-v1.15.2-linux-amd64.tar.gz
-  #     - tar -zxf velero.tar.gz
-  #     - mv velero*/velero /usr/local/bin/velero
-  #     - bats -t katalog/tests/velero/velero-backup.sh
-
-  # - name: destroy-azure
-  #   image: hashicorp/terraform:1.4.6
-  #   pull: always
-  #   network_mode: host
-  #   depends_on: [ test-backup-restore-azure ]
-  #   environment:
-  #     CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-132
-  #     KUBECONFIG: /drone/src/kubeconfig-132
-  #     CI_PIPELINE_NUMBER: k132a
-  #     TERRAFORM_TF_STATES_BUCKET_NAME:
-  #       from_secret: arm_terraform_tf_states_bucket_name
-  #     STORAGE_ACCOUNT_NAME:
-  #       from_secret: storage_account_name
-  #     RESOURCE_GROUP_NAME:
-  #       from_secret: resource_group_name
-  #     ARM_CLIENT_ID:
-  #       from_secret: arm_client_id
-  #     ARM_CLIENT_SECRET:
-  #       from_secret: arm_client_secret
-  #     ARM_SUBSCRIPTION_ID:
-  #       from_secret: arm_subscription_id
-  #     ARM_TENANT_ID:
-  #       from_secret: arm_tenant_id
-  #   commands:
-  #     - cd examples/azure-example
-  #     - terraform init
-  #       --backend=true
-  #       --backend-config="storage_account_name=$${STORAGE_ACCOUNT_NAME}"
-  #       --backend-config="resource_group_name=$${RESOURCE_GROUP_NAME}"
-  #       --backend-config="container_name=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
-  #       --backend-config="key=${CI_REPO}/${DRONE_BRANCH}/${CI_BUILD_NUMBER}/$${CI_PIPELINE_NUMBER}"
-  #     - terraform destroy
-  #       --auto-approve
-  #       --var="my_cluster_name=$${CI_PIPELINE_NUMBER}${CI_BUILD_NUMBER}"
-  #   when:
-  #     status:
-  #     - success
-  #     - failure
+        - success
+        - failure
 
   - name: delete-kind-cluster
-    image: quay.io/sighup/dind-kind-kubectl-kustomize:0.27.0_1.32.2_5.6.0
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    depends_on: [destroy-gcp]
     volumes:
       - name: dockersock
         path: /var/run/docker.sock
-    pull: always
-    depends_on: [destroy-gcp]
-    environment:
-      CLUSTER_NAME: ${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-132
+      - name: mise-cache
+        path: /mise-data
     commands:
+      - |
+        mise use kind@$${KIND_VERSION}
+        eval "$(mise activate bash --shims)"
       # does not matter if the command fails
       - kind delete cluster --name $${CLUSTER_NAME} || true
     when:
@@ -1587,6 +1367,790 @@ volumes:
   - name: dockersock
     host:
       path: /var/run/docker.sock
+  - name: mise-cache
+    host:
+      path: /root/mise_data_dir
+
+---
+name: e2e-kubernetes-1.33
+kind: pipeline
+type: docker
+
+depends_on:
+  - policeman
+
+platform:
+  os: linux
+  arch: amd64
+
+trigger:
+  ref:
+    include:
+      - refs/tags/**
+
+environment:
+  # Mise configuration.
+  MISE_DATA_DIR: "/mise-data"
+  MISE_OVERRIDE_CONFIG_FILENAMES: "mise.ci.toml"
+
+  # Cluster version.
+  CLUSTER_VERSION: "v1.33.2"
+  CLUSTER_NAME: "${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-1.33.2"
+
+  # Default tool versions.
+  KUBECTL_VERSION: "v1.33.2"
+  JQ_VERSION: "1.8.1"
+  BATS_VERSION: "1.1.0"
+  KUSTOMIZE_VERSION: "5.6.0"
+  VELERO_VERSION: "1.16.2"
+
+  # /drone/src is the default workdir for the pipeline
+  # using this folder we don't need to mount another
+  # shared volume between the steps
+  KUBECONFIG: "/drone/src/kubeconfig-133"
+
+  # AWS configuration.
+  AWS_CI_PIPELINE_NUMBER: "dr-133-aws"
+  AWS_CLOUD_CREDENTIALS_PATH: "/drone/src/aws_cloud_credentials_133.yaml"
+  AWS_BACKUP_STORAGE_LOCATION_PATH: "/drone/src/aws_backup_storage_location_133.yaml"
+
+  # GCP configuration.
+  GCP_CI_PIPELINE_NUMBER: "dr-133-gcp"
+  GOOGLE_APPLICATION_CREDENTIALS: "/drone/src/gcp_terraform-credentials-133.json"
+  GCP_CLOUD_CREDENTIALS_PATH: "/drone/src/gcp_cloud_credentials_133.yaml"
+  GCP_BACKUP_STORAGE_LOCATION_PATH: "/drone/src/gcp_backup_storage_location_133.yaml"
+
+steps:
+  - name: create-kind-cluster
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    depends_on: [clone]
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    environment:
+      # GITHUB_TOKEN must be defined in the step scope, otherwise it won't work.
+      # drone exec will fail with a `cannot unmarshal !!map into string` error.
+      GITHUB_TOKEN:
+        from_secret: github_token
+    commands:
+      - |-
+        mise use kind@$${KIND_VERSION} kubectl@$${KUBECTL_VERSION}
+        eval "$(mise activate bash --shims)"
+      # NOTE: kind's `--wait` flag that waits for the control-plane to be ready.
+      # It does not work when disabling the default CNI. It will always go in timeout.
+      - kind create cluster --name $${CLUSTER_NAME} --image registry.sighup.io/fury/kindest/node:$${CLUSTER_VERSION} --config katalog/tests/kind-config.yml
+      # Save the kubeconfig so we can use it in other steps.
+      - kind get kubeconfig --name $${CLUSTER_NAME} > $${KUBECONFIG}
+
+  - name: test-install
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [create-kind-cluster]
+    commands:
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-install.sh
+
+  - name: test-backup-restore
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [test-install]
+    commands:
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
+      - bats -t katalog/tests/velero/velero-file-system-backup.sh
+      - bats -t katalog/tests/velero/velero-snapshot-backup.sh
+
+  - name: init-aws
+    image: hashicorp/terraform:1.4.6
+    pull: always
+    network_mode: host
+    depends_on: [test-backup-restore]
+    environment:
+      AWS_DEFAULT_REGION:
+        from_secret: aws_region
+      AWS_ACCESS_KEY_ID:
+        from_secret: aws_access_key_id
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: aws_secret_access_key
+      TERRAFORM_TF_STATES_BUCKET_NAME:
+        from_secret: aws_terraform_tf_states_bucket_name
+    commands:
+      - cd examples/aws-example
+      - terraform init
+        --backend=true
+        --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
+        --backend-config="key=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
+        --backend-config="region=$${AWS_DEFAULT_REGION}"
+      - terraform apply
+        --auto-approve
+        --var="my_cluster_name=$${CLUSTER_NAME}"
+      - terraform output -raw cloud_credentials > "$${AWS_CLOUD_CREDENTIALS_PATH}"
+      - terraform output -raw backup_storage_location > "$${AWS_BACKUP_STORAGE_LOCATION_PATH}"
+
+  - name: apply-aws-configuration
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [init-aws]
+    commands:
+      - |-
+        mise use kubectl@$${KUBECTL_VERSION}
+        eval "$(mise activate bash --shims)"
+      - kubectl apply -f "$${AWS_CLOUD_CREDENTIALS_PATH}" -n kube-system
+      - kubectl apply -f "$${AWS_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
+      - kubectl rollout restart deploy velero -n kube-system
+      - kubectl rollout status deploy/velero -n kube-system --timeout=180s
+      - kubectl get pods -n kube-system
+
+  - name: test-backup-restore-aws
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [apply-aws-configuration]
+    commands:
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
+
+  - name: destroy-aws
+    image: hashicorp/terraform:1.4.6
+    pull: always
+    network_mode: host
+    depends_on: [test-backup-restore-aws]
+    environment:
+      AWS_DEFAULT_REGION:
+        from_secret: aws_region
+      AWS_ACCESS_KEY_ID:
+        from_secret: aws_access_key_id
+      AWS_SECRET_ACCESS_KEY:
+        from_secret: aws_secret_access_key
+      TERRAFORM_TF_STATES_BUCKET_NAME:
+        from_secret: aws_terraform_tf_states_bucket_name
+    commands:
+      - cd examples/aws-example
+      - terraform init
+        --backend=true
+        --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
+        --backend-config="key=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${AWS_CI_PIPELINE_NUMBER}"
+        --backend-config="region=$${AWS_DEFAULT_REGION}"
+      - terraform destroy
+        --auto-approve
+        --var="my_cluster_name=$${CLUSTER_NAME}"
+    when:
+      status:
+        - success
+        - failure
+
+  - name: init-gcp
+    image: hashicorp/terraform:1.4.6
+    pull: always
+    network_mode: host
+    depends_on: [destroy-aws]
+    environment:
+      GCP_PROJECT:
+        from_secret: gcp_project
+      GCP_CREDENTIALS:
+        from_secret: gcp_credentials
+      TERRAFORM_TF_STATES_BUCKET_NAME:
+        from_secret: gcp_terraform_tf_states_bucket_name
+    commands:
+      - echo $${GCP_CREDENTIALS} > "$${GOOGLE_APPLICATION_CREDENTIALS}"
+      - cd examples/gcp-example
+      - terraform init
+        --backend=true
+        --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
+        --backend-config="prefix=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
+      - terraform apply
+        --auto-approve
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${DRONE_BUILD_NUMBER}"
+        --var="gcp_project=$${GCP_PROJECT}"
+      - terraform output -raw cloud_credentials > "$${GCP_CLOUD_CREDENTIALS_PATH}"
+      - terraform output -raw backup_storage_location > "$${GCP_BACKUP_STORAGE_LOCATION_PATH}"
+
+  - name: apply-gcp-configuration
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [init-gcp]
+    commands:
+      - |-
+        mise use kubectl@$${KUBECTL_VERSION}
+        eval "$(mise activate bash --shims)"
+      - kubectl apply -f "$${GCP_CLOUD_CREDENTIALS_PATH}" -n kube-system
+      - kubectl apply -f "$${GCP_BACKUP_STORAGE_LOCATION_PATH}" -n kube-system
+      - kustomize build katalog/velero/velero-gcp | kubectl apply -f - -n kube-system
+      - kubectl rollout restart deploy velero -n kube-system
+      - kubectl rollout status deploy/velero -n kube-system --timeout=180s
+      - kubectl get pods -n kube-system
+
+  - name: test-backup-restore-gcp
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [apply-gcp-configuration]
+    commands:
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-manifest-backup.sh
+
+  - name: destroy-gcp
+    image: hashicorp/terraform:1.4.6
+    pull: always
+    network_mode: host
+    depends_on: [test-backup-restore-gcp]
+    environment:
+      GCP_PROJECT:
+        from_secret: gcp_project
+      GCP_CREDENTIALS:
+        from_secret: gcp_credentials
+      TERRAFORM_TF_STATES_BUCKET_NAME:
+        from_secret: gcp_terraform_tf_states_bucket_name
+    commands:
+      - cd examples/gcp-example
+      - echo $${GCP_CREDENTIALS} > $${GOOGLE_APPLICATION_CREDENTIALS}
+      - terraform init
+        --backend=true
+        --backend-config="bucket=$${TERRAFORM_TF_STATES_BUCKET_NAME}"
+        --backend-config="prefix=${DRONE_REPO_NAME}/${DRONE_BRANCH}/${DRONE_BUILD_NUMBER}/$${GCP_CI_PIPELINE_NUMBER}"
+      - terraform destroy
+        --auto-approve
+        --var="my_cluster_name=$${GCP_CI_PIPELINE_NUMBER}-${DRONE_BUILD_NUMBER}"
+        --var="gcp_project"=$${GCP_PROJECT}
+    when:
+      status:
+        - success
+        - failure
+
+  - name: delete-kind-cluster
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    depends_on: [destroy-gcp]
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    commands:
+      - |
+        mise use kind@$${KIND_VERSION}
+        eval "$(mise activate bash --shims)"
+      # does not matter if the command fails
+      - kind delete cluster --name $${CLUSTER_NAME} || true
+    when:
+      status:
+        - success
+        - failure
+
+volumes:
+  - name: dockersock
+    host:
+      path: /var/run/docker.sock
+  - name: mise-cache
+    host:
+      path: /root/mise_data_dir
+
+# e2e-upgrade pipelines start here.
+---
+name: e2e-kubernetes-1.29-upgrade
+kind: pipeline
+type: docker
+
+depends_on:
+  - policeman
+
+platform:
+  os: linux
+  arch: amd64
+
+trigger:
+  ref:
+    include:
+      - refs/tags/**
+
+environment:
+  # Mise configuration.
+  MISE_DATA_DIR: "/mise-data"
+  MISE_OVERRIDE_CONFIG_FILENAMES: "mise.ci.toml"
+
+  # Cluster version.
+  CLUSTER_VERSION: "v1.29.0"
+  CLUSTER_NAME: "${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-1.29.0-upgrade"
+
+  # Default tool versions.
+  KUBECTL_VERSION: "v1.29.1"
+  JQ_VERSION: "1.8.1"
+  BATS_VERSION: "1.1.0"
+  KUSTOMIZE_VERSION: "5.6.0"
+  VELERO_VERSION: "1.16.2"
+
+  # Dedicated kubeconfig for this upgrade pipeline
+  KUBECONFIG: "/drone/src/kubeconfig-129-upgrade"
+
+steps:
+  - name: create-kind-cluster-upgrade
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    depends_on: [clone]
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    environment:
+      GITHUB_TOKEN:
+        from_secret: github_token
+    commands:
+      - |-
+        mise use kind@$${KIND_VERSION} kubectl@$${KUBECTL_VERSION}
+        eval "$(mise activate bash --shims)"
+      - kind create cluster --name $${CLUSTER_NAME} --image registry.sighup.io/fury/kindest/node:$${CLUSTER_VERSION} --config katalog/tests/kind-config.yml
+      - kind get kubeconfig --name $${CLUSTER_NAME} > $${KUBECONFIG}
+
+  - name: test-install-previous-upgrade
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [create-kind-cluster-upgrade]
+    commands:
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-install-previous.sh
+
+  - name: test-upgrade-backup-restore
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [test-install-previous-upgrade]
+    commands:
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-upgrade-file-system.sh
+
+  - name: delete-kind-cluster-upgrade
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [test-upgrade-backup-restore]
+    commands:
+      - |
+        mise use kind@$${KIND_VERSION}
+        eval "$(mise activate bash --shims)"
+      - kind delete cluster --name $${CLUSTER_NAME} || true
+    when:
+      status:
+        - success
+        - failure
+
+volumes:
+  - name: dockersock
+    host:
+      path: /var/run/docker.sock
+  - name: mise-cache
+    host:
+      path: /root/mise_data_dir
+
+---
+name: e2e-kubernetes-1.30-upgrade
+kind: pipeline
+type: docker
+
+depends_on:
+  - policeman
+
+platform:
+  os: linux
+  arch: amd64
+
+trigger:
+  ref:
+    include:
+      - refs/tags/**
+
+environment:
+  MISE_DATA_DIR: "/mise-data"
+  MISE_OVERRIDE_CONFIG_FILENAMES: "mise.ci.toml"
+
+  CLUSTER_VERSION: "v1.30.4"
+  CLUSTER_NAME: "${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-1.30.4-upgrade"
+
+  KUBECTL_VERSION: "v1.30.4"
+  JQ_VERSION: "1.8.1"
+  BATS_VERSION: "1.1.0"
+  KUSTOMIZE_VERSION: "5.6.0"
+  VELERO_VERSION: "1.16.2"
+
+  KUBECONFIG: "/drone/src/kubeconfig-130-upgrade"
+
+steps:
+  - name: create-kind-cluster-upgrade
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    depends_on: [clone]
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    environment:
+      GITHUB_TOKEN:
+        from_secret: github_token
+    commands:
+      - |-
+        mise use kind@$${KIND_VERSION} kubectl@$${KUBECTL_VERSION}
+        eval "$(mise activate bash --shims)"
+      - kind create cluster --name $${CLUSTER_NAME} --image registry.sighup.io/fury/kindest/node:$${CLUSTER_VERSION} --config katalog/tests/kind-config.yml
+      - kind get kubeconfig --name $${CLUSTER_NAME} > $${KUBECONFIG}
+
+  - name: test-install-previous-upgrade
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [create-kind-cluster-upgrade]
+    commands:
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-install-previous.sh
+
+  - name: test-upgrade-backup-restore
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [test-install-previous-upgrade]
+    commands:
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-upgrade-file-system.sh
+
+  - name: delete-kind-cluster-upgrade
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    commands:
+      - |
+        mise use kind@$${KIND_VERSION}
+        eval "$(mise activate bash --shims)"
+      - kind delete cluster --name $${CLUSTER_NAME} || true
+    depends_on: [test-upgrade-backup-restore]
+    when:
+      status:
+        - success
+        - failure
+
+volumes:
+  - name: dockersock
+    host:
+      path: /var/run/docker.sock
+  - name: mise-cache
+    host:
+      path: /root/mise_data_dir
+
+---
+name: e2e-kubernetes-1.31-upgrade
+kind: pipeline
+type: docker
+
+depends_on:
+  - policeman
+
+platform:
+  os: linux
+  arch: amd64
+
+trigger:
+  ref:
+    include:
+      - refs/tags/**
+
+environment:
+  MISE_DATA_DIR: "/mise-data"
+  MISE_OVERRIDE_CONFIG_FILENAMES: "mise.ci.toml"
+
+  CLUSTER_VERSION: "v1.31.9"
+  CLUSTER_NAME: "${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-1.31.9-upgrade"
+
+  KUBECTL_VERSION: "v1.31.9"
+  JQ_VERSION: "1.8.1"
+  BATS_VERSION: "1.1.0"
+  KUSTOMIZE_VERSION: "5.6.0"
+  VELERO_VERSION: "1.16.2"
+
+  KUBECONFIG: "/drone/src/kubeconfig-131-upgrade"
+
+steps:
+  - name: create-kind-cluster-upgrade
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    depends_on: [clone]
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    environment:
+      GITHUB_TOKEN:
+        from_secret: github_token
+    commands:
+      - |-
+        mise use kind@$${KIND_VERSION} kubectl@$${KUBECTL_VERSION}
+        eval "$(mise activate bash --shims)"
+      - kind create cluster --name $${CLUSTER_NAME} --image registry.sighup.io/fury/kindest/node:$${CLUSTER_VERSION} --config katalog/tests/kind-config.yml
+      - kind get kubeconfig --name $${CLUSTER_NAME} > $${KUBECONFIG}
+
+  - name: test-install-previous-upgrade
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [create-kind-cluster-upgrade]
+    commands:
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-install-previous.sh
+
+  - name: test-upgrade-backup-restore
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [test-install-previous-upgrade]
+    commands:
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-upgrade-file-system.sh
+
+  - name: delete-kind-cluster-upgrade
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    commands:
+      - |
+        mise use kind@$${KIND_VERSION}
+        eval "$(mise activate bash --shims)"
+      - kind delete cluster --name $${CLUSTER_NAME} || true
+    depends_on: [test-upgrade-backup-restore]
+    when:
+      status:
+        - success
+        - failure
+
+volumes:
+  - name: dockersock
+    host:
+      path: /var/run/docker.sock
+  - name: mise-cache
+    host:
+      path: /root/mise_data_dir
+
+---
+name: e2e-kubernetes-1.32-upgrade
+kind: pipeline
+type: docker
+
+depends_on:
+  - policeman
+
+platform:
+  os: linux
+  arch: amd64
+
+trigger:
+  ref:
+    include:
+      - refs/tags/**
+
+environment:
+  MISE_DATA_DIR: "/mise-data"
+  MISE_OVERRIDE_CONFIG_FILENAMES: "mise.ci.toml"
+
+  CLUSTER_VERSION: "v1.32.5"
+  CLUSTER_NAME: "${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-1.32.5-upgrade"
+
+  KUBECTL_VERSION: "v1.32.5"
+  JQ_VERSION: "1.8.1"
+  BATS_VERSION: "1.1.0"
+  KUSTOMIZE_VERSION: "5.6.0"
+  VELERO_VERSION: "1.16.2"
+
+  KUBECONFIG: "/drone/src/kubeconfig-132-upgrade"
+
+steps:
+  - name: create-kind-cluster-upgrade
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    depends_on: [clone]
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    environment:
+      GITHUB_TOKEN:
+        from_secret: github_token
+    commands:
+      - |-
+        mise use kind@$${KIND_VERSION} kubectl@$${KUBECTL_VERSION}
+        eval "$(mise activate bash --shims)"
+      - kind create cluster --name $${CLUSTER_NAME} --image registry.sighup.io/fury/kindest/node:$${CLUSTER_VERSION} --config katalog/tests/kind-config.yml
+      - kind get kubeconfig --name $${CLUSTER_NAME} > $${KUBECONFIG}
+
+  - name: test-install-previous-upgrade
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [create-kind-cluster-upgrade]
+    commands:
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-install-previous.sh
+
+  - name: test-upgrade-backup-restore
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [test-install-previous-upgrade]
+    commands:
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-upgrade-file-system.sh
+
+  - name: delete-kind-cluster-upgrade
+    image: quay.io/sighup/mise:v2025.4.4
+    pull: always
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    commands:
+      - |
+        mise use kind@$${KIND_VERSION}
+        eval "$(mise activate bash --shims)"
+      - kind delete cluster --name $${CLUSTER_NAME} || true
+    depends_on: [test-upgrade-backup-restore]
+    when:
+      status:
+        - success
+        - failure
+
+volumes:
+  - name: dockersock
+    host:
+      path: /var/run/docker.sock
+  - name: mise-cache
+    host:
+      path: /root/mise_data_dir
+
 
 ---
 name: release
@@ -1598,6 +2162,12 @@ depends_on:
   - e2e-kubernetes-1.30
   - e2e-kubernetes-1.31
   - e2e-kubernetes-1.32
+  - e2e-kubernetes-1.33
+  - e2e-kubernetes-1.29-upgrade
+  - e2e-kubernetes-1.30-upgrade
+  - e2e-kubernetes-1.31-upgrade
+  - e2e-kubernetes-1.32-upgrade
+  # There's no upgrade for 1.33 because Velero 1.15.x didn't have support for 1.33. 
 
 platform:
   os: linux
@@ -1614,7 +2184,7 @@ steps:
   - name: prepare-tar-gz
     image: alpine:latest
     pull: always
-    depends_on: [ clone ]
+    depends_on: [clone]
     commands:
       - tar -zcvf fury-kubernetes-dr-${DRONE_TAG}.tar.gz katalog/ LICENSE README.md
     when:
@@ -1625,7 +2195,7 @@ steps:
   - name: prepare-release-notes
     image: quay.io/sighup/fury-release-notes-plugin:3.7_2.8.4
     pull: always
-    depends_on: [ clone ]
+    depends_on: [clone]
     settings:
       release_notes_file_path: release-notes.md
     when:

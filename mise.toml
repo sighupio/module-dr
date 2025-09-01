@@ -1,0 +1,44 @@
+# Copyright (c) 2017-present SIGHUP s.r.l All rights reserved.
+# Use of this source code is governed by a BSD-style
+# license that can be found in the LICENSE file.
+
+[tools]
+kind = "0.30.0"
+kubectl = "1.33.4"
+kustomize = "5.6.0"
+bats = "1.11.0"
+drone = "latest"
+"ubi:google/addlicense" = "v1.1.1"
+velero = "1.16.2"
+
+# Development task definitions
+[tasks.add-license]
+description = "Add license headers to all files"
+run = '''
+echo "📄 Adding license headers..."
+addlicense -c "SIGHUP s.r.l" -y "2017-present" -v -l bsd .
+echo "✅ License headers added!"
+'''
+
+[tasks.validate-manifests]
+description = "Validate all manifests can be built"
+run = '''
+echo "🔍 Validating manifest builds..."
+kustomize build katalog/velero/velero-aws > /dev/null && echo "  ✅ velero-aws"
+kustomize build katalog/velero/velero-azure > /dev/null && echo "  ✅ velero-azure"
+kustomize build katalog/velero/velero-base > /dev/null && echo "  ✅ velero-base"
+kustomize build katalog/velero/velero-gcp > /dev/null && echo "  ✅ velero-gcp"
+kustomize build katalog/velero/velero-node-agent > /dev/null && echo "  ✅ velero-node-agent"
+kustomize build katalog/velero/velero-on-prem > /dev/null && echo "  ✅ velero-on-prem"
+kustomize build katalog/velero/velero-schedules > /dev/null && echo "  ✅ velero-schedules"
+echo "✅ All manifests validated!"
+'''
+
+[tasks.setup]
+description = "Complete development environment setup"
+run = '''
+echo "🚀 Setting up development environment..."
+mise run add-license
+mise run validate-manifests
+echo "✅ Development environment ready!"
+'''

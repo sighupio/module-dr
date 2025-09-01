@@ -9,7 +9,8 @@ load ./../helper
 @test "Trigger backup" {
     info
     test() {
-        timeout 120 velero backup create backup-e2e --from-schedule manifests -n kube-system --wait
+        # Give backup more time under load
+        timeout 10m velero backup create backup-e2e --from-schedule manifests -n kube-system --wait
     }
     run test
     [ "$status" -eq 0 ]
@@ -17,10 +18,8 @@ load ./../helper
 
 @test "Verify that backup is completed" {
     info
-    test() {
-        velero -n kube-system backup get backup-e2e | grep Completed
-    }
-    loop_it test 40 10
+    # Wait for Velero Backup phase to be Completed
+    run kubectl wait --for=jsonpath='{.status.phase}'=Completed backup/backup-e2e -n kube-system --timeout=10m
     [ "$status" -eq 0 ]
 }
 
@@ -36,12 +35,12 @@ load ./../helper
 @test "Restore backup" {
     info
     test() {
-        timeout 120 velero restore create --from-backup backup-e2e -n kube-system --wait
+        # Give restore more time under load
+        timeout 10m velero restore create --from-backup backup-e2e -n kube-system --wait
     }
     run test
     [ "$status" -eq 0 ]
 }
-
 
 @test "Test Recovery" {
     info

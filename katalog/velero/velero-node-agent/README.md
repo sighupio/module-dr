@@ -7,7 +7,7 @@ This support is considered beta quality due to a list of [limitations](https://v
 
 ## Image repository and tag
 
-- Velero Node Agent image: `velero/velero:v1.15.2`
+- Velero Node Agent image: `velero/velero:v1.16.2`
 - Velero Node Agent repository: [https://github.com/vmware-tanzu/velero](https://github.com/vmware-tanzu/velero).
 
 

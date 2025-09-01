@@ -19,4 +19,4 @@ resources:
 images:
 - name: velero/velero
   newName: registry.sighup.io/fury/velero/velero
-  newTag: v1.15.2
+  newTag: v1.16.2

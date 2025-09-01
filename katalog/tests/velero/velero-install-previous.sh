@@ -13,10 +13,10 @@ load ./../helper
     kubectl apply -f https://raw.githubusercontent.com/sighupio/fury-kubernetes-monitoring/v3.5.0/katalog/prometheus-operator/crds/0servicemonitorCustomResourceDefinition.yaml
 }
 
-@test "Deploy Snapshot Controller" {
+@test "Deploy previous version of the Snapshot Controller" {
     info
     test() {
-        apply katalog/velero/snapshot-controller
+        apply https://github.com/sighupio/module-dr.git/katalog/velero/snapshot-controller?ref=v3.1.0
     }
     loop_it test 30 10
     status=${loop_it_result}
@@ -43,7 +43,7 @@ load ./../helper
 @test "Deploy Velero on Prem" {
     info
     test() {
-        apply katalog/velero/velero-on-prem
+        apply https://github.com/sighupio/module-dr.git//katalog/velero/velero-on-prem?ref=v3.1.0
     }
     loop_it test 30 10
     status=${loop_it_result}
@@ -74,7 +74,7 @@ load ./../helper
 @test "Deploy Velero Node Agent" {
     info
     test() {
-        apply katalog/velero/velero-node-agent
+        apply https://github.com/sighupio/module-dr.git/katalog/velero/velero-node-agent?ref=v3.1.0
     }
     run test
     [ "$status" -eq 0 ]
@@ -93,7 +93,7 @@ load ./../helper
 @test "Deploy Velero Schedules" {
     info
     test() {
-        apply katalog/velero/velero-schedules
+        apply https://github.com/sighupio/module-dr.git//katalog/velero/velero-schedules?ref=v3.1.0
     }
     run test
     [ "$status" -eq 0 ]

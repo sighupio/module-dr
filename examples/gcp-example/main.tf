@@ -8,7 +8,7 @@ terraform {
   backend "gcs" {}
   required_version = "~> 1.4"
   required_providers {
-    google = "~> 3.90.1"
+    google = "~> 7.0"
     random = "~> 3.5.1"
   }
 }
