@@ -10,6 +10,7 @@ metadata:
     k8s-app: velero
   name: default
 spec:
+  default: true
   config:
     region: minio
     s3ForcePathStyle: "true"
