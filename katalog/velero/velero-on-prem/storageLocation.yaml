@@ -14,8 +14,8 @@ spec:
   config:
     region: minio
     s3ForcePathStyle: "true"
-    s3Url: "http://$(MINIO_STS_NAME)-0.$(MINIO_SERVICE_NAME).$(MINIO_NAMESPACE).svc.cluster.local:9000"
+    s3Url: "http://minio-0.minio.kube-system.svc.cluster.local:9000"
   objectStorage:
-    bucket: "$(MINIO_NAMESPACE)"
+    bucket: "kube-system"
   provider: aws
 

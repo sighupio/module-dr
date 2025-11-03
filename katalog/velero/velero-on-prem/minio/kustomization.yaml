@@ -13,35 +13,8 @@ resources:
 - service.yaml
 - sts.yaml
 
-vars:
-- name: MINIO_NAMESPACE
-  objref:
-    kind: Service
-    name: minio
-    apiVersion: v1
-  fieldref:
-    fieldpath: metadata.namespace
-- name: MINIO_SERVICE_NAME
-  objref:
-    kind: Service
-    name: minio
-    apiVersion: v1
-  fieldref:
-    fieldpath: metadata.name
-- name: MINIO_STS_NAME
-  objref:
-    kind: StatefulSet
-    name: minio
-    apiVersion: apps/v1
-  fieldref:
-    fieldpath: metadata.name
-- name: MINIO_SETUP_JOB_NAME
-  objref:
-    kind: Job
-    name: minio-setup
-    apiVersion: batch/v1
-  fieldref:
-    fieldpath: metadata.name
+patches:
+- path: init-job-patch.yaml
 
 images:
 - name: minio/minio

@@ -22,7 +22,7 @@ spec:
       - name: wait-for-minio-setup
         image: groundnuty/k8s-wait-for
         imagePullPolicy: Always
-        args: ["job", "$(MINIO_SETUP_JOB_NAME)"]
+        args: ["job", "minio-setup"]
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
