@@ -9,7 +9,7 @@ kustomize = "5.6.0"
 bats = "1.11.0"
 drone = "latest"
 "ubi:google/addlicense" = "v1.1.1"
-velero = "1.16.2"
+velero = "1.17.1"
 
 # Development task definitions
 [tasks.add-license]

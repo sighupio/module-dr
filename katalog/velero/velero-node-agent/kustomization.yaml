@@ -10,7 +10,7 @@ namespace: kube-system
 images:
 - name: velero/velero
   newName: registry.sighup.io/fury/velero/velero
-  newTag: v1.16.2
+  newTag: v1.17.1
 
 resources:
 - daemonset.yml
