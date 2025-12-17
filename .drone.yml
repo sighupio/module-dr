@@ -393,7 +393,7 @@ steps:
     when:
       status:
         - success
-        - failure
+        # - failure
 
 volumes:
   - name: dockersock
@@ -716,7 +716,7 @@ steps:
     when:
       status:
         - success
-        - failure
+        # - failure
 
 volumes:
   - name: dockersock
@@ -1039,7 +1039,7 @@ steps:
     when:
       status:
         - success
-        - failure
+        # - failure
 
 volumes:
   - name: dockersock
