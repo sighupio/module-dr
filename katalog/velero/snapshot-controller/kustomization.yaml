@@ -15,6 +15,6 @@ resources:
 images:
 - name: registry.k8s.io/sig-storage/snapshot-controller
   newName: registry.sighup.io/fury/sig-storage/snapshot-controller
-  newTag: v8.3.0
+  newTag: v8.4.0
 
 
