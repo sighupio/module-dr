@@ -13,4 +13,5 @@ images:
   newTag: v1.17.1
 
 resources:
+- configmap.yml
 - daemonset.yml
