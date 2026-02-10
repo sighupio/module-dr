@@ -18,8 +18,8 @@ images:
   newName: registry.sighup.io/fury/groundnuty/k8s-wait-for
   newTag: v2.0
 
-patchesStrategicMerge:
-- plugin-patch.yaml
+patches:
+- path: plugin-patch.yaml
 
 resources:
 - ../velero-base

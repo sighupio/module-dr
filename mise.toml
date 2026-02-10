@@ -10,6 +10,7 @@ bats = "1.11.0"
 drone = "latest"
 "ubi:google/addlicense" = "v1.1.1"
 velero = "1.17.1"
+dyff = "1.9.0"
 
 # Development task definitions
 [tasks.add-license]

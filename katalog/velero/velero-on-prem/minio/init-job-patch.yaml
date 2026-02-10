@@ -1,0 +1,21 @@
+# Copyright (c) 2017-present SIGHUP s.r.l All rights reserved.
+# Use of this source code is governed by a BSD-style
+# license that can be found in the LICENSE file.
+
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-setup
+spec:
+  template:
+    spec:
+      initContainers:
+      - name: wait-for-minio
+        args: ["pod", "minio-0"]
+      containers:
+      - name: mc
+        command:
+        - /bin/sh
+        - -c
+        - "mc --config-dir=/config alias set kube-system http://minio-0.minio:9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY} && mc --config-dir=/config mb -p kube-system/kube-system"
