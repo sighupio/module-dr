@@ -18,6 +18,9 @@ spec:
   failedJobsHistoryLimit: 5
   concurrencyPolicy: Forbid
   jobTemplate:
+    metadata:
+      labels:
+        velero.io/exclude-from-backup: "true"
     spec:
       template:
         metadata:
@@ -28,6 +31,7 @@ spec:
             app.kubernetes.io/version: "1.0.0"
             app.kubernetes.io/component: disaster-recovery
             app.kubernetes.io/part-of: KFD
+            velero.io/exclude-from-backup: "true"
         spec:
           volumes:
             - name: etcd-certs
