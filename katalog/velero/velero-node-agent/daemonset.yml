@@ -32,7 +32,7 @@ spec:
         - node-agent
         - server
         - --features=
-        - --node-agent-config=node-agent-config
+        - --node-agent-configmap=node-agent-config
         command:
         - /velero
         env:
