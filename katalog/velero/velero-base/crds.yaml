@@ -745,6 +745,8 @@ items:
                   description: Phase is the current state of the Backup.
                   enum:
                   - New
+                  - Queued
+                  - ReadyToStart
                   - FailedValidation
                   - InProgress
                   - WaitingForPluginOperations
@@ -776,6 +778,11 @@ items:
                         filters that happen as items are processed.
                       type: integer
                   type: object
+                queuePosition:
+                  description: |-
+                    QueuePosition is the position of the backup in the queue.
+                    Only relevant when Phase is "Queued"
+                  type: integer
                 startTimestamp:
                   description: |-
                     StartTimestamp records the time a backup was started.
@@ -935,10 +942,38 @@ items:
                       description: Bucket is the bucket to use for object storage.
                       type: string
                     caCert:
-                      description: CACert defines a CA bundle to use when verifying
-                        TLS connections to the provider.
+                      description: |-
+                        CACert defines a CA bundle to use when verifying TLS connections to the provider.
+                        Deprecated: Use CACertRef instead.
                       format: byte
                       type: string
+                    caCertRef:
+                      description: |-
+                        CACertRef is a reference to a Secret containing the CA certificate bundle to use
+                        when verifying TLS connections to the provider. The Secret must be in the same
+                        namespace as the BackupStorageLocation.
+                      properties:
+                        key:
+                          description: The key of the secret to select from.  Must
+                            be a valid secret key.
+                          type: string
+                        name:
+                          default: ""
+                          description: |-
+                            Name of the referent.
+                            This field is effectively required, but due to backwards compatibility is
+                            allowed to be empty. Instances of this type with an empty value here are
+                            almost certainly wrong.
+                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                          type: string
+                        optional:
+                          description: Specify whether the Secret or its key must
+                            be defined
+                          type: boolean
+                      required:
+                      - key
+                      type: object
+                      x-kubernetes-map-type: atomic
                     prefix:
                       description: Prefix is the path inside a bucket to use for Velero
                         storage. Optional.
@@ -1227,6 +1262,12 @@ items:
         jsonPath: .status.progress.totalBytes
         name: Total Bytes
         type: integer
+      - description: Incremental bytes
+        format: int64
+        jsonPath: .status.incrementalBytes
+        name: Incremental Bytes
+        priority: 10
+        type: integer
       - description: Name of the Backup Storage Location where this backup should
           be stored
         jsonPath: .spec.backupStorageLocation
@@ -1383,6 +1424,11 @@ items:
                   format: date-time
                   nullable: true
                   type: string
+                incrementalBytes:
+                  description: IncrementalBytes holds the number of bytes new or changed
+                    since the last backup
+                  format: int64
+                  type: integer
                 message:
                   description: Message is a message about the pod volume backup's
                     status.
@@ -1572,6 +1618,10 @@ items:
                 snapshotID:
                   description: SnapshotID is the ID of the volume snapshot to be restored.
                   type: string
+                snapshotSize:
+                  description: SnapshotSize is the logical size in Bytes of the snapshot.
+                  format: int64
+                  type: integer
                 sourceNamespace:
                   description: SourceNamespace is the original namespace for namaspace
                     mapping.
@@ -3140,6 +3190,10 @@ items:
                   description: SnapshotID is the ID of the Velero backup snapshot
                     to be restored from.
                   type: string
+                snapshotSize:
+                  description: SnapshotSize is the logical size in Bytes of the snapshot.
+                  format: int64
+                  type: integer
                 sourceNamespace:
                   description: |-
                     SourceNamespace is the original namespace where the volume is backed up from.
@@ -3273,6 +3327,12 @@ items:
         format: int64
         jsonPath: .status.progress.totalBytes
         name: Total Bytes
+        type: integer
+      - description: Incremental bytes
+        format: int64
+        jsonPath: .status.incrementalBytes
+        name: Incremental Bytes
+        priority: 10
         type: integer
       - description: Name of the Backup Storage Location where this backup should
           be stored
@@ -3414,6 +3474,11 @@ items:
                     as a result of the DataUpload.
                   nullable: true
                   type: object
+                incrementalBytes:
+                  description: IncrementalBytes holds the number of bytes new or changed
+                    since the last backup
+                  format: int64
+                  type: integer
                 message:
                   description: Message is a message about the DataUpload's status.
                   type: string
