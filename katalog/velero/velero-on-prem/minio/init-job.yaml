@@ -23,12 +23,12 @@ spec:
         emptyDir: {}
       initContainers:
       - name: wait-for-minio
-        image: groundnuty/k8s-wait-for
+        image: registry.sighup.io/fury/groundnuty/k8s-wait-for
         imagePullPolicy: Always
         args: ["pod", "$(MINIO_STS_NAME)-0"]
       containers:
       - name: mc
-        image: minio/mc
+        image: registry.sighup.io/fury/minio/mc
         imagePullPolicy: Always
         envFrom:
         - secretRef:
@@ -36,7 +36,7 @@ spec:
         command:
         - /bin/sh
         - -c
-        - "mc --config-dir=/config alias set $(MINIO_NAMESPACE) http://$(MINIO_STS_NAME)-0.$(MINIO_SERVICE_NAME):9000 ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY} && mc --config-dir=/config mb -p $(MINIO_NAMESPACE)/$(MINIO_NAMESPACE)"
+        - "mc --config-dir=/config alias set $(MINIO_NAMESPACE) http://$(MINIO_STS_NAME)-0.$(MINIO_SERVICE_NAME):9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} && mc --config-dir=/config mb -p $(MINIO_NAMESPACE)/$(MINIO_NAMESPACE)"
         volumeMounts:
         - name: config
           mountPath: "/config"
