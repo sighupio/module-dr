@@ -155,7 +155,7 @@ bases:
   - vendor/katalog/dr/velero/velero-node-agent
 ```
 
-More information about [Velero Node Agent integration](https://velero.io/docs/v1.12/upgrade-to-1.12/)
+More information about [Velero Node Agent integration](https://velero.io/docs/v1.18/file-system-backup/)
 
 ### Velero schedule
 

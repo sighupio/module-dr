@@ -17,14 +17,11 @@ patches:
 - path: init-job-patch.yaml
 
 images:
-- name: minio/minio
-  newName: registry.sighup.io/fury/minio
-  newTag: RELEASE.2025-09-07T16-13-09Z
-- name: minio/mc
-  newName: registry.sighup.io/fury/minio/mc
+- name: registry.sighup.io/fury/minio/mc
   newTag: RELEASE.2025-08-13T08-35-41Z
-- name: groundnuty/k8s-wait-for
-  newName: registry.sighup.io/fury/groundnuty/k8s-wait-for
+- name: registry.sighup.io/fury/minio
+  newTag: RELEASE.2026-05-20T23-44-52Z-chainguard
+- name: registry.sighup.io/fury/groundnuty/k8s-wait-for
   newTag: v2.0
 
 generatorOptions:

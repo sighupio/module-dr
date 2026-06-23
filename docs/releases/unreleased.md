@@ -1,0 +1,63 @@
+# Disaster recovery Core Module Release 3.4.0
+
+Welcome to the latest release of the `DR` module of [`SIGHUP Distribution`](https://github.com/sighupio/distribution) maintained by team SIGHUP by ReeVo.
+
+This latest release upgrades the components in the module to their latest stable release.
+
+## Component Images 🚢
+
+| Component                           | Supported Version                                                                                   | Previous Version |
+|-------------------------------------|-----------------------------------------------------------------------------------------------------|------------------|
+| `velero`                            | [`v1.18.1`](https://github.com/vmware-tanzu/velero/releases/tag/v1.18.1)                            | `v1.17.1`        |
+| `velero-plugin-for-aws`             | [`v1.14.1`](https://github.com/vmware-tanzu/velero-plugin-for-aws/releases/tag/v1.14.1)             | `v1.13.1`        |
+| `velero-plugin-for-microsoft-azure` | [`v1.14.1`](https://github.com/vmware-tanzu/velero-plugin-for-microsoft-azure/releases/tag/v1.14.1) | `v1.13.1`        |
+| `velero-plugin-for-gcp`             | [`v1.14.1`](https://github.com/vmware-tanzu/velero-plugin-for-gcp/releases/tag/v1.14.1)             | `v1.13.1`        |
+| `snapshot-controller`               | [`v8.4.0`](https://github.com/kubernetes-csi/external-snapshotter/releases/tag/v8.4.0)              | `No Update`      |
+| `minio` (on-prem)                   | `RELEASE.2026-05-20T23-44-52Z-chainguard`                                                           | `RELEASE.2025-09-07T16-13-09Z` |
+
+> Please refer to the individual release notes to get a detailed information on each release.
+
+## Features 💥
+
+- Add support for Kubernetes 1.35
+- Drop support for Kubernetes 1.31, 1.32
+- Update Velero to v1.18.1
+- Update Velero plugins to v1.14.1
+- Switch Minio (on-prem) to Chainguard fork
+
+## Breaking Changes 💔
+
+### Deprecation of PVC selected node feature
+
+According to Velero deprecation policy, PVC selected node feature is deprecated in v1.18. Velero handles the `selected-node` annotation on PVCs automatically, so no action is required.
+
+## Upgrade Guide 🦮
+
+To upgrade this module from v3.3.0 to v3.4.0, you need to download this new version and then:
+
+1. Upgrade Velero CRDs
+```bash
+# Upgrade CRDs
+kubectl apply -f katalog/velero-base/crds.yaml
+```
+
+2. Upgrade Velero
+```yaml
+# Upgrade Velero
+kustomize build katalog/velero/velero-aws | kubectl apply -f -
+# Or
+kustomize build katalog/velero/velero-gcp | kubectl apply -f -
+# Or
+kustomize build katalog/velero/velero-azure | kubectl apply -f -
+# Or, if the cluster is on-premise remove the minio-setup job first
+kubectl delete job -n kube-system minio-setup
+kustomize build katalog/velero/velero-on-prem | kubectl apply -f -
+```
+
+3. *(Optional) Install/upgrade the snapshot controller*:
+if you want to enable VolumeSnapshots as backups, you can install and/or upgrade the [`snapshot-controller`](../../katalog/velero/snapshot-controller/) package.
+
+```yaml
+# Install snapshot-controller
+kustomize build katalog/velero/snapshot-controller | kubectl apply -f -
+```
