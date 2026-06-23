@@ -1,7 +1,8 @@
 # GCP Velero
 
-This terraform module provides an easy way to generate Velero required cloud resources (Bucket and Credentials)
-to backup Kubernetes objects and trigger volume snapshots.
+**This Terraform module generates the GCP cloud resources (Bucket and credentials) required by Velero to back up Kubernetes objects and trigger volume snapshots.**
+
+> **Note**: This module is part of [SIGHUP Distribution (SD)](https://github.com/sighupio/distribution) and is consumed automatically by `furyctl` when you create a cluster. You don't need to use it directly: its inputs are derived from your `furyctl.yaml`. The reference below is intended for maintainers and contributors.
 
 ## Inputs
 
@@ -13,7 +14,6 @@ to backup Kubernetes objects and trigger volume snapshots.
 | gcp_custom_role_name     | Name of the gcp custom role to assign to the gcp service account              | `string`      | `"velero_role"` | yes      |
 | workload_identity        | Flag to specify if velero should use workload identity instead of credentials | `bool`        | `false`         | yes      |
 | tags                     | Custom tags to apply to resources                                             | `map(string)` | `{}`            | no       |
-
 
 ## Outputs
 
@@ -38,38 +38,3 @@ The presence of some outputs is conditional to the presence of `workload_identit
 | `remove_restic_credentials_patch`  | :x:                | :white_check_mark: |
 
 To find out more about workload identity go to the [official documentation](https://cloud.google.com/kubernetes-engine/docs/how-to/workload-identitys).
-
-## Usage
-
-Without workload identity:
-
-```hcl
-module "velero" {
-  source             = "../vendor/modules/gcp-velero"
-  backup_bucket_name = "my-cluster-staging-velero"
-  project            = "sighup-staging"
-  tags               = {
-    "my-key": "my-value"
-  }
-}
-```
-
-To enable workload identity:
-
-```hcl
-module "velero" {
-  source             = "../vendor/modules/gcp-velero"
-  backup_bucket_name = "my-cluster-staging-velero"
-  project            = "sighup-staging"
-  workload_identity  = true
-  tags               = {
-    "my-key": "my-value"
-  }
-}
-```
-
-## Links
-
-- [https://github.com/vmware-tanzu/velero-plugin-for-aws/blob/v1.2.0/backupstoragelocation.md](https://github.com/vmware-tanzu/velero-plugin-for-aws/blob/v1.2.0/backupstoragelocation.md)
-- [https://github.com/vmware-tanzu/velero-plugin-for-aws/blob/v1.2.0/volumesnapshotlocation.md](https://github.com/vmware-tanzu/velero-plugin-for-aws/blob/v1.2.0/volumesnapshotlocation.md)
-- [https://github.com/vmware-tanzu/velero-plugin-for-aws/tree/v1.2.0#setup](https://github.com/vmware-tanzu/velero-plugin-for-aws/blob/v1.2.0/volumesnapshotlocation.md)
