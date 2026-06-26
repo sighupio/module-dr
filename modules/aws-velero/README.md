@@ -2,7 +2,8 @@
 
 **This Terraform module generates the AWS cloud resources (S3 and IAM) required by Velero to back up Kubernetes objects and trigger volume snapshots.**
 
-> **Note**: This module is part of [SIGHUP Distribution (SD)](https://github.com/sighupio/distribution) and is consumed automatically by `furyctl` when you create a cluster. You don't need to use it directly: its inputs are derived from your `furyctl.yaml`. The reference below is intended for maintainers and contributors.
+> [!NOTE]
+> This module is part of [SIGHUP Distribution (SD)](https://github.com/sighupio/distribution) and is consumed automatically by `furyctl` when you create a cluster. You don't need to use it directly: its inputs are derived from your `furyctl.yaml`. The reference below is intended for maintainers and contributors.
 
 ## Requirements
 
