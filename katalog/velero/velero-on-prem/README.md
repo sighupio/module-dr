@@ -1,33 +1,24 @@
 # Velero on Premises
 
-This Velero deployment is ready to be deployed in any Kubernetes cluster as it includes a MinIO instance compatible with
-the [AWS Velero plugin](https://github.com/vmware-tanzu/velero-plugin-for-aws/tree/v1.11.1).
+<!-- <SD-DOCS> -->
 
-## Image repository and tag
+## Overview
 
-- Velero AWS Plugin image: `velero/velero-plugin-for-aws:v1.11.1`
-- Velero AWS Plugin repository:
-[https://github.com/vmware-tanzu/velero-plugin-for-aws](https://github.com/vmware-tanzu/velero-plugin-for-aws).
-- MinIO image: `minio/minio:RELEASE.2025-02-28T09-55-16Z`
-- MinIO client image: `minio/mc:RELEASE.2025-02-21T16-00-46Z`
-- MinIO repository: [https://github.com/minio/minio](https://github.com/minio/minio)
+Velero on Premises deploys Velero with an in-cluster [MinIO][minio-page] instance as the S3-compatible object storage backend, using the AWS-compatible Velero plugin. It is intended for clusters that don't have access to a cloud provider's object storage. Note that the MinIO server runs in the same cluster that is being backed up.
 
+## Upstream project
+
+This package is based on the upstream [MinIO][minio-page] object storage server.
 
 ## Deployment
 
-You can deploy Velero AWS by running the following command in the root of this project:
+This package is deployed as part of **Disaster Recovery Module** when you create a cluster with `furyctl`. It is an internal building block selected automatically when the chosen backend is `minio`. See the [module documentation](../../../README.md) to learn how the Disaster Recovery Module is installed and configured.
 
-```bash
-$ kustomize build | kubectl apply -f -
-# omitted output
-```
+<!-- Links -->
 
-### Important Notes
+[minio-page]: https://min.io/
 
-The deployment order is managed by an `initContainer` that waits for a set of conditions. In this case, velero deployment
-waits for MinIO instance to be fully configured and ready.
-
-You can see it in [plugin-patch.yaml](./plugin-patch.yaml) and [minio/init-job.yaml](minio/init-job.yaml).
+<!-- </SD-DOCS> -->
 
 ## License
 
