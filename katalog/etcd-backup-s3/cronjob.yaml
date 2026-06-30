@@ -6,6 +6,8 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: etcd-backup-s3
+  annotations:
+    ignore-check.kube-linter.io/host-network: "etcd listens on host network, required for backup"
   labels:
     app.kubernetes.io/name: etcd-backup-s3
     app.kubernetes.io/instance: etcd-backup-s3-dr

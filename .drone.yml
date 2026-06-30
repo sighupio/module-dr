@@ -5,17 +5,26 @@
 name: license
 kind: pipeline
 type: docker
-
+volumes:
+  - name: mise-cache
+    host:
+      path: /root/mise_data_dir
 steps:
   - name: check
-    image: docker.io/library/golang:1.21
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
+    environment:
+      MISE_DATA_DIR: /mise-data
+      GITHUB_TOKEN:
+        from_secret: github_token
+    volumes:
+      - name: mise-cache
+        path: /mise-data
     commands:
-      - go install github.com/google/addlicense@v1.1.1
-      - addlicense -c "SIGHUP s.r.l" -v -l bsd --check .
+      - mise run check-license
 
 ---
-name: policeman
+name: validate
 kind: pipeline
 type: docker
 depends_on:
@@ -28,28 +37,10 @@ platform:
 environment:
   # Mise configuration envvars.
   MISE_DATA_DIR: /mise-data
-  MISE_OVERRIDE_CONFIG_FILENAMES: "mise.ci.toml"
 
 steps:
-  # - name: lint
-  #   image: quay.io/sighup/policeman
-  #   pull: always
-  #   environment:
-  #     FILTER_REGEX_EXCLUDE: (\.github)
-  #     VALIDATE_TERRAFORM_TERRASCAN: "false"
-  #     # Identifies false positives like missing 'selector'.
-  #     # Doing this is valid for Kustomize patches
-  #     VALIDATE_KUBERNETES_KUBEVAL: "false"
-  #     # Some duplicated code is intended.
-  #     VALIDATE_JSCPD: "false"
-  #     VALIDATE_DOCKERFILE: "false"
-  #     # Disable natural language checks
-  #     VALIDATE_NATURAL_LANGUAGE: "false"
-  #   depends_on:
-  #     - clone
-
   - name: render
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     environment:
       GITHUB_TOKEN:
@@ -60,16 +51,29 @@ steps:
     depends_on:
       - clone
     commands:
-      - |
-        mise use kustomize@5.6.0
-        eval "$(mise activate bash --shims)"
+      - eval "$(mise activate bash --shims)"
       - kustomize build katalog/velero/velero-on-prem > velero.yml
+
+  - name: lint
+    image: quay.io/sighup/mise:v2026.6.14
+    pull: always
+    environment:
+      MISE_DATA_DIR: /mise-data
+      GITHUB_TOKEN:
+        from_secret: github_token
+    volumes:
+      - name: mise-cache
+        path: /mise-data
+    depends_on:
+      - render
+    commands:
+      - mise run lint
 
   - name: check-deprecated-apis
     image: us-docker.pkg.dev/fairwinds-ops/oss/pluto:v5
     pull: always
     depends_on:
-      - render
+      - lint
     commands:
       # we use --ignore-deprecations because we don't want the CI to fail when the API has not been removed yet.
       - /pluto detect velero.yml --target-versions=k8s=v1.35.0 --ignore-deprecations
@@ -79,14 +83,13 @@ volumes:
     host:
       path: /root/mise_data_dir
 
-
 ---
 name: e2e-kubernetes-1.33
 kind: pipeline
 type: docker
 
 depends_on:
-  - policeman
+  - validate
 
 platform:
   os: linux
@@ -100,7 +103,6 @@ trigger:
 environment:
   # Mise configuration.
   MISE_DATA_DIR: "/mise-data"
-  MISE_OVERRIDE_CONFIG_FILENAMES: "mise.ci.toml"
 
   # Cluster version.
   CLUSTER_VERSION: "v1.33.2"
@@ -131,7 +133,7 @@ environment:
 
 steps:
   - name: create-kind-cluster
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     depends_on: [clone]
     volumes:
@@ -155,7 +157,7 @@ steps:
       - kind get kubeconfig --name $${CLUSTER_NAME} > $${KUBECONFIG}
 
   - name: test-install
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     network_mode: host
     volumes:
@@ -172,7 +174,7 @@ steps:
       - bats -t katalog/tests/velero/velero-install.sh
 
   - name: test-backup-restore
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     network_mode: host
     volumes:
@@ -218,7 +220,7 @@ steps:
       - terraform output -raw backup_storage_location > "$${AWS_BACKUP_STORAGE_LOCATION_PATH}"
 
   - name: apply-aws-configuration
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     network_mode: host
     volumes:
@@ -238,7 +240,7 @@ steps:
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-aws
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     network_mode: host
     volumes:
@@ -310,7 +312,7 @@ steps:
       - terraform output -raw backup_storage_location > "$${GCP_BACKUP_STORAGE_LOCATION_PATH}"
 
   - name: apply-gcp-configuration
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     network_mode: host
     volumes:
@@ -331,7 +333,7 @@ steps:
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-gcp
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     network_mode: host
     volumes:
@@ -376,7 +378,7 @@ steps:
         - failure
 
   - name: delete-kind-cluster
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     depends_on: [destroy-gcp]
     volumes:
@@ -409,7 +411,7 @@ kind: pipeline
 type: docker
 
 depends_on:
-  - policeman
+  - validate
 
 platform:
   os: linux
@@ -423,7 +425,6 @@ trigger:
 environment:
   # Mise configuration.
   MISE_DATA_DIR: "/mise-data"
-  MISE_OVERRIDE_CONFIG_FILENAMES: "mise.ci.toml"
 
   # Cluster version.
   CLUSTER_VERSION: "v1.34.0"
@@ -454,7 +455,7 @@ environment:
 
 steps:
   - name: create-kind-cluster
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     depends_on: [clone]
     volumes:
@@ -478,7 +479,7 @@ steps:
       - kind get kubeconfig --name $${CLUSTER_NAME} > $${KUBECONFIG}
 
   - name: test-install
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     network_mode: host
     volumes:
@@ -495,7 +496,7 @@ steps:
       - bats -t katalog/tests/velero/velero-install.sh
 
   - name: test-backup-restore
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     network_mode: host
     volumes:
@@ -541,7 +542,7 @@ steps:
       - terraform output -raw backup_storage_location > "$${AWS_BACKUP_STORAGE_LOCATION_PATH}"
 
   - name: apply-aws-configuration
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     network_mode: host
     volumes:
@@ -561,7 +562,7 @@ steps:
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-aws
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     network_mode: host
     volumes:
@@ -633,7 +634,7 @@ steps:
       - terraform output -raw backup_storage_location > "$${GCP_BACKUP_STORAGE_LOCATION_PATH}"
 
   - name: apply-gcp-configuration
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     network_mode: host
     volumes:
@@ -654,7 +655,7 @@ steps:
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-gcp
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     network_mode: host
     volumes:
@@ -699,7 +700,7 @@ steps:
         - failure
 
   - name: delete-kind-cluster
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     depends_on: [destroy-gcp]
     volumes:
@@ -732,7 +733,7 @@ kind: pipeline
 type: docker
 
 depends_on:
-  - policeman
+  - validate
 
 platform:
   os: linux
@@ -746,7 +747,6 @@ trigger:
 environment:
   # Mise configuration.
   MISE_DATA_DIR: "/mise-data"
-  MISE_OVERRIDE_CONFIG_FILENAMES: "mise.ci.toml"
 
   # Cluster version.
   CLUSTER_VERSION: "v1.35.0"
@@ -777,7 +777,7 @@ environment:
 
 steps:
   - name: create-kind-cluster
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     depends_on: [clone]
     volumes:
@@ -801,7 +801,7 @@ steps:
       - kind get kubeconfig --name $${CLUSTER_NAME} > $${KUBECONFIG}
 
   - name: test-install
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     network_mode: host
     volumes:
@@ -818,7 +818,7 @@ steps:
       - bats -t katalog/tests/velero/velero-install.sh
 
   - name: test-backup-restore
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     network_mode: host
     volumes:
@@ -864,7 +864,7 @@ steps:
       - terraform output -raw backup_storage_location > "$${AWS_BACKUP_STORAGE_LOCATION_PATH}"
 
   - name: apply-aws-configuration
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     network_mode: host
     volumes:
@@ -884,7 +884,7 @@ steps:
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-aws
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     network_mode: host
     volumes:
@@ -956,7 +956,7 @@ steps:
       - terraform output -raw backup_storage_location > "$${GCP_BACKUP_STORAGE_LOCATION_PATH}"
 
   - name: apply-gcp-configuration
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     network_mode: host
     volumes:
@@ -977,7 +977,7 @@ steps:
       - kubectl get pods -n kube-system
 
   - name: test-backup-restore-gcp
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     network_mode: host
     volumes:
@@ -1022,7 +1022,7 @@ steps:
         - failure
 
   - name: delete-kind-cluster
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     depends_on: [destroy-gcp]
     volumes:
@@ -1056,7 +1056,7 @@ kind: pipeline
 type: docker
 
 depends_on:
-  - policeman
+  - validate
 
 platform:
   os: linux
@@ -1069,7 +1069,6 @@ trigger:
 
 environment:
   MISE_DATA_DIR: "/mise-data"
-  MISE_OVERRIDE_CONFIG_FILENAMES: "mise.ci.toml"
 
   CLUSTER_VERSION: "v1.33.0"
   CLUSTER_NAME: "${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-1.33.0-upgrade"
@@ -1084,7 +1083,7 @@ environment:
 
 steps:
   - name: create-kind-cluster-upgrade
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     depends_on: [clone]
     volumes:
@@ -1103,7 +1102,7 @@ steps:
       - kind get kubeconfig --name $${CLUSTER_NAME} > $${KUBECONFIG}
 
   - name: test-install-previous-upgrade
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     network_mode: host
     volumes:
@@ -1120,7 +1119,7 @@ steps:
       - bats -t katalog/tests/velero/velero-install-previous.sh
 
   - name: test-upgrade-backup-restore
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     network_mode: host
     volumes:
@@ -1137,7 +1136,7 @@ steps:
       - bats -t katalog/tests/velero/velero-upgrade-file-system.sh
 
   - name: delete-kind-cluster-upgrade
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     volumes:
       - name: dockersock
@@ -1163,14 +1162,13 @@ volumes:
     host:
       path: /root/mise_data_dir
 
-
 ---
 name: e2e-kubernetes-1.34-upgrade
 kind: pipeline
 type: docker
 
 depends_on:
-  - policeman
+  - validate
 
 platform:
   os: linux
@@ -1183,7 +1181,6 @@ trigger:
 
 environment:
   MISE_DATA_DIR: "/mise-data"
-  MISE_OVERRIDE_CONFIG_FILENAMES: "mise.ci.toml"
 
   CLUSTER_VERSION: "v1.34.0"
   CLUSTER_NAME: "${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-1.34.0-upgrade"
@@ -1198,7 +1195,7 @@ environment:
 
 steps:
   - name: create-kind-cluster-upgrade
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     depends_on: [clone]
     volumes:
@@ -1217,7 +1214,7 @@ steps:
       - kind get kubeconfig --name $${CLUSTER_NAME} > $${KUBECONFIG}
 
   - name: test-install-previous-upgrade
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     network_mode: host
     volumes:
@@ -1234,7 +1231,7 @@ steps:
       - bats -t katalog/tests/velero/velero-install-previous.sh
 
   - name: test-upgrade-backup-restore
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     network_mode: host
     volumes:
@@ -1251,7 +1248,7 @@ steps:
       - bats -t katalog/tests/velero/velero-upgrade-file-system.sh
 
   - name: delete-kind-cluster-upgrade
-    image: quay.io/sighup/mise:v2025.4.4
+    image: quay.io/sighup/mise:v2026.6.14
     pull: always
     volumes:
       - name: dockersock
@@ -1276,7 +1273,6 @@ volumes:
   - name: mise-cache
     host:
       path: /root/mise_data_dir
-
 
 ---
 name: release
