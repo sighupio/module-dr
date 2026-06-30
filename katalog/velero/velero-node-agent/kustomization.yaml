@@ -15,3 +15,13 @@ images:
 resources:
 - configmap.yml
 - daemonset.yml
+
+patches:
+  - target:
+      kind: DaemonSet
+      name: node-agent
+    patch: |-
+      - op: add
+        path: /metadata/annotations
+        value:
+          ignore-check.kube-linter.io/non-existent-service-account: "ServiceAccount defined in velero-base/rbac.yaml"
