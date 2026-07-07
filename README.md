@@ -17,7 +17,7 @@
 
 **Disaster Recovery Module** implements backups and disaster recovery for [SIGHUP Distribution (SD)][kfd-repo].
 
-If you are new to SD please refer to the [official documentation][kfd-docs] on how to get started with SD.
+If you are new to SD please refer to the [official documentation][skd-docs] on how to get started with SD.
 
 ## Overview
 
@@ -103,7 +103,7 @@ To install SD from scratch, follow the [Getting started][getting-started] guide.
 [csi-data-movement]: https://velero.io/docs/main/csi-snapshot-data-movement/
 [kfd-repo]: https://github.com/sighupio/distribution
 [furyctl-repo]: https://github.com/sighupio/furyctl
-[kfd-docs]: https://docs.sighup.io/docs/distribution/
+[skd-docs]: https://docs.sighup.io/docs/distribution/
 [schema-reference-eks]: https://docs.sighup.io/docs/reference/ekscluster#specdistributionmodulesdr
 [schema-reference-kfd]: https://docs.sighup.io/docs/reference/kfddistribution#specdistributionmodulesdr
 [schema-reference-onprem]: https://docs.sighup.io/docs/reference/onpremises#specdistributionmodulesdr
