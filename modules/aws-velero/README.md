@@ -1,6 +1,9 @@
 # AWS Velero
 
-This terraform module provides an easy way to generate Velero required cloud resources (S3 and IAM) to backup Kubernetes objects and trigger volume snapshots.
+**This Terraform module generates the AWS cloud resources (S3 and IAM) required by Velero to back up Kubernetes objects and trigger volume snapshots.**
+
+> [!NOTE]
+> This module is part of [SIGHUP Distribution (SD)](https://github.com/sighupio/distribution) and is consumed automatically by `furyctl` when you create a cluster. You don't need to use it directly: its inputs are derived from your `furyctl.yaml`. The reference below is intended for maintainers and contributors.
 
 ## Requirements
 
@@ -44,34 +47,3 @@ This terraform module provides an easy way to generate Velero required cloud res
 | cloud\_credentials         | Velero required file with credentials   |
 | service\_account           | Velero ServiceAccount                   |
 | volume\_snapshot\_location | Velero Cloud VolumeSnapshotLocation CRD |
-
-## Usage
-
-```hcl
-module "velero" {
-  source             = "../vendor/modules/aws-velero"
-  backup_bucket_name = "my-cluster-staging-velero"
-  tags               = {
-    "my-key": "my-value"
-  }
-}
-```
-
-To use IAM Roles for Service Accounts (IRSA):
-
-```hcl
-data "aws_eks_cluster" "this" {
-  name = "my-cluster-staging"
-}
-
-module "velero" {
-  source             = "../vendor/modules/aws-velero"
-  backup_bucket_name = "my-cluster-staging-velero"
-  oidc_provider_url  = replace(data.aws_eks_cluster.this.identity.0.oidc.0.issuer, "https://", "")
-  tags               = {
-    "my-key": "my-value"
-  }
-}
-```
-
-For more information about IAM Roles for Service Accounts to inject AWS credentials inside Velero's pods, click [here](https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html)

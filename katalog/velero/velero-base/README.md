@@ -1,23 +1,17 @@
 # Velero Base
 
-This directory contains common components needed to deploy Velero.
+<!-- <SD-DOCS> -->
 
-## Common components
+## Overview
 
-- [CRDs](./crds.yaml)
-- [Base Velero deployment](./deployment.yaml)
-- [RBAC](./rbac.yaml)
-- [Manifest backup Schedule definition](./schedule.yaml)
-- [Velero metrics service](./service.yaml)
-- [Velero ServiceMonitor](./serviceMonitor.yaml)
+Velero Base contains the common Velero components (CRDs, base deployment, RBAC, manifest backup schedule and the metrics service and ServiceMonitor) shared by every backend. It does not provide a working backup setup on its own; the backend-specific packages build on top of it.
 
-## Important
+## Deployment
 
-This directory does not provide any functionality by itself. Please refer to the different Velero deployment options:
+This package is deployed as part of **Disaster Recovery Module** when you create a cluster with `furyctl`. It is an internal building block selected automatically based on the chosen backend and provider. See the [module documentation](../../../README.md) to learn how the Disaster Recovery Module is installed and configured.
 
-- [Velero On Prem](../velero-on-prem/README.md)
-- [Velero AWS](../velero-aws/README.md)
-- [Velero GCP](../velero-gcp/README.md)
-- [Velero Azure](../velero-azure/README.md)
+<!-- </SD-DOCS> -->
 
-These deployments uses this base to deploy velero configured for each cloud provider.
+## License
+
+For license details please see [LICENSE](../../../LICENSE)
