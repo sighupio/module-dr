@@ -66,13 +66,13 @@ steps:
       - kustomize build katalog/velero/velero-on-prem > velero.yml
 
   - name: check-deprecated-apis
-    image: us-docker.pkg.dev/fairwinds-ops/oss/pluto:v5
+    image: us-docker.pkg.dev/fairwinds-ops/oss/pluto:v5.24.4
     pull: always
     depends_on:
       - render
     commands:
       # we use --ignore-deprecations because we don't want the CI to fail when the API has not been removed yet.
-      - /pluto detect velero.yml --target-versions=k8s=v1.35.0 --ignore-deprecations
+      - /pluto detect velero.yml --target-versions=k8s=v1.36.0 --ignore-deprecations
 
 volumes:
   - name: mise-cache
@@ -1622,7 +1622,7 @@ environment:
   CLUSTER_VERSION: "v1.35.0"
   CLUSTER_NAME: "${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-1.35.0-upgrade"
 
-  KUBECTL_VERSION: "v1.35.6" #TODO
+  KUBECTL_VERSION: "v1.35.6"
   JQ_VERSION: "1.8.2"
   BATS_VERSION: "1.14.0"
   KUSTOMIZE_VERSION: "5.6.0"
