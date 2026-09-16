@@ -16,7 +16,7 @@ This package is deployed as part of **Disaster Recovery Module** when you create
 
 <!-- Links -->
 
-[plugin]: https://github.com/vmware-tanzu/velero-plugin-for-gcp
+[plugin]: https://github.com/velero-io/velero-plugin-for-gcp
 
 <!-- </SD-DOCS> -->
 
