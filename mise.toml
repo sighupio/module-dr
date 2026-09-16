@@ -18,7 +18,6 @@ config_roots = [
     "katalog/velero/snapshot-controller"
 ]
 
-
 # Development task definitions
 [tasks.add-license]
 description = "Add license headers to all files"
