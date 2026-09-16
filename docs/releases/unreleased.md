@@ -8,7 +8,7 @@ This latest release adds support for K8S v1.36 and upgrades the components in th
 
 | Component                           | Supported Version                                                                                                     | Previous Version               |
 |-------------------------------------|-----------------------------------------------------------------------------------------------------------------------|--------------------------------|
-| `velero`                            | [`v1.18.1`](https://github.com/velero-io/velero/releases/tag/v1.18.1)                                                 | `No Update`                    |
+| `velero`                            | [`v1.18.2`](https://github.com/velero-io/velero/releases/tag/v1.18.2)                                                 | `v1.18.1`                      |
 | `velero-plugin-for-aws`             | [`v1.14.2`](https://github.com/velero-io/velero-plugin-for-aws/releases/tag/v1.14.2)                                  | `v1.14.1`                      |
 | `velero-plugin-for-microsoft-azure` | [`v1.14.2`](https://github.com/velero-io/velero-plugin-for-microsoft-azure/releases/tag/v1.14.2)                      | `v1.14.1`                      |
 | `velero-plugin-for-gcp`             | [`v1.14.2`](https://github.com/velero-io/velero-plugin-for-gcp/releases/tag/v1.14.2)                                  | `v1.14.1`                      |
