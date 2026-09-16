@@ -3,14 +3,14 @@
 # license that can be found in the LICENSE file.
 
 [tools]
-kind = "0.31.0"
-kubectl = "1.35.6"
+kind = "0.33.0"
+kubectl = "1.36.4"
 kustomize = "5.6.0"
-bats = "1.11.0"
+bats = "1.14.0"
 drone = "latest"
-"ubi:google/addlicense" = "v1.1.1"
-velero = "1.18.1"
-dyff = "1.9.0"
+"ubi:google/addlicense" = "v1.2.0"
+velero = "1.18.2"
+dyff = "1.12.0"
 
 # Development task definitions
 [tasks.add-license]
