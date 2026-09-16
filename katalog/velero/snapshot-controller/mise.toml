@@ -18,27 +18,21 @@ crds=(
   "groupsnapshot.storage.k8s.io_volumegroupsnapshots.yaml"
 )
 
-# List of Snapshot Controller RBAC and deployment to download
-controllers=(
-  "rbac-snapshot-controller.yaml"
-  "setup-snapshot-controller.yaml"
-)
-
 # Combined CRDs manifest
 combined_crds="crds.yaml"
 
 echo "Downloading CRD manifests..."
-rm -f "$combined_crds"
+rm -f "$combined_crds" "${crds[@]}"
 for crd in "${crds[@]}"; do
   curl -O "$crd_base_url/$crd" || { echo "Failed to download $crd"; exit 1; }
 
   cat "$crd" >> "$combined_crds"
 done
+rm -f "${crds[@]}"
 
 echo "Downloading Snapshot Controller RBAC and deployment manifests..."
-for controller in "${controllers[@]}"; do
-  curl -O "$controller_base_url/$controller" || { echo "Failed to download $controller"; exit 1; }
-done
+curl -o rbac.yaml "$controller_base_url/rbac-snapshot-controller.yaml" || { echo "Failed to download rbac.yaml"; exit 1; }
+curl -o deployment.yaml "$controller_base_url/setup-snapshot-controller.yaml" || { echo "Failed to download deployment.yaml"; exit 1; }
 
 mise run //:add-license
 '''
