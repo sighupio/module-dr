@@ -18,12 +18,6 @@ crds=(
   "groupsnapshot.storage.k8s.io_volumegroupsnapshots.yaml"
 )
 
-# List of Snapshot Controller RBAC and deployment to download
-controllers=(
-  "rbac-snapshot-controller.yaml"
-  "setup-snapshot-controller.yaml"
-)
-
 # Combined CRDs manifest
 combined_crds="crds.yaml"
 
