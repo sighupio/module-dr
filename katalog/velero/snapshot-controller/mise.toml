@@ -24,6 +24,7 @@ controllers=(
 combined_crds="combined_crds.yaml"
 
 echo "Downloading CRD manifests..."
+rm -f "$combined_crds"
 for crd in "${crds[@]}"; do
   curl -O "$crd_base_url/$crd" || { echo "Failed to download $crd"; exit 1; }
 
