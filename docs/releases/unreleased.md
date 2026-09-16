@@ -32,7 +32,7 @@ To upgrade this module from v3.4.0 to v3.5.0, you need to download this new vers
 1. Upgrade Velero CRDs
 ```bash
 # Upgrade CRDs
-kubectl apply -f katalog/velero-base/crds.yaml
+kubectl apply -f katalog/velero/velero-base/crds.yaml
 ```
 
 2. Upgrade Velero
