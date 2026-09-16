@@ -10,7 +10,7 @@ This latest release adds support for K8S v1.36 and upgrades the components in th
 |-------------------------------------|--------------------------------------------------------------------------------------------------|------------------|
 | `velero`                            | [`v1.18.1`](https://github.com/velero-io/velero/releases/tag/v1.18.1)                            | `No Update`      |
 | `velero-plugin-for-aws`             | [`v1.14.2`](https://github.com/velero-io/velero-plugin-for-aws/releases/tag/v1.14.2)             | `v1.14.1`        |
-| `velero-plugin-for-microsoft-azure` | [`v1.14.1`](https://github.com/velero-io/velero-plugin-for-microsoft-azure/releases/tag/v1.14.1) | `No Update`      |
+| `velero-plugin-for-microsoft-azure` | [`v1.14.2`](https://github.com/velero-io/velero-plugin-for-microsoft-azure/releases/tag/v1.14.2) | `v1.14.1`        |
 | `velero-plugin-for-gcp`             | [`v1.14.1`](https://github.com/velero-io/velero-plugin-for-gcp/releases/tag/v1.14.1)             | `No Update`      |
 | `snapshot-controller`               | [`v8.6.0`](https://github.com/kubernetes-csi/external-snapshotter/releases/tag/v8.6.0)           | `v8.4.0`         |
 | `minio` (on-prem)                   | `RELEASE.2026-05-20T23-44-52Z-chainguard`                                                        | `No Update`      |
