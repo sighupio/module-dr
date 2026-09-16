@@ -18,6 +18,12 @@ crds=(
   "groupsnapshot.storage.k8s.io_volumegroupsnapshots.yaml"
 )
 
+# List of Snapshot Controller RBAC and deployment to download
+controllers=(
+  "rbac-snapshot-controller.yaml"
+  "setup-snapshot-controller.yaml"
+)
+
 # Combined CRDs manifest
 combined_crds="crds.yaml"
 
@@ -27,6 +33,7 @@ for crd in "${crds[@]}"; do
   curl -O "$crd_base_url/$crd" || { echo "Failed to download $crd"; exit 1; }
 
   cat "$crd" >> "$combined_crds"
+  echo "---" >> "$combined_crds"
 done
 rm -f "${crds[@]}"
 
