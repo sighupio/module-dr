@@ -20,7 +20,7 @@ images:
 - name: registry.sighup.io/fury/minio/mc
   newTag: RELEASE.2025-08-13T08-35-41Z
 - name: registry.sighup.io/fury/minio
-  newTag: RELEASE.2026-05-20T23-44-52Z-chainguard
+  newTag: RELEASE.2026-07-17T12-07-51Z-chainguard
 - name: registry.sighup.io/fury/groundnuty/k8s-wait-for
   newTag: v2.0
 

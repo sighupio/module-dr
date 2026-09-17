@@ -1712,6 +1712,119 @@ volumes:
       path: /root/mise_data_dir
 
 ---
+name: e2e-kubernetes-1.36-upgrade
+kind: pipeline
+type: docker
+
+depends_on:
+  - policeman
+
+platform:
+  os: linux
+  arch: amd64
+
+trigger:
+  ref:
+    include:
+      - refs/tags/**
+
+environment:
+  MISE_DATA_DIR: "/mise-data"
+  MISE_OVERRIDE_CONFIG_FILENAMES: "mise.ci.toml"
+
+  CLUSTER_VERSION: "v1.36.4"
+  CLUSTER_NAME: "${DRONE_REPO_NAME}-${DRONE_BUILD_NUMBER}-1.36.4-upgrade"
+
+  KUBECTL_VERSION: "v1.36.4"
+  JQ_VERSION: "1.8.2"
+  BATS_VERSION: "1.14.0"
+  KUSTOMIZE_VERSION: "5.6.0"
+  VELERO_VERSION: "1.18.2"
+
+  KUBECONFIG: "/drone/src/kubeconfig-136-upgrade"
+
+steps:
+  - name: create-kind-cluster-upgrade
+    image: quay.io/sighup/mise:v2026.8.6
+    pull: always
+    depends_on: [clone]
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    environment:
+      GITHUB_TOKEN:
+        from_secret: github_token
+    commands:
+      - |-
+        mise use kind@$${KIND_VERSION} kubectl@$${KUBECTL_VERSION}
+        eval "$(mise activate bash --shims)"
+      - kind create cluster --name $${CLUSTER_NAME} --image registry.sighup.io/fury/kindest/node:$${CLUSTER_VERSION} --config katalog/tests/kind-config.yml
+      - kind get kubeconfig --name $${CLUSTER_NAME} > $${KUBECONFIG}
+
+  - name: test-install-previous-upgrade
+    image: quay.io/sighup/mise:v2026.8.6
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [create-kind-cluster-upgrade]
+    commands:
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-install-previous.sh
+
+  - name: test-upgrade-backup-restore
+    image: quay.io/sighup/mise:v2026.8.6
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [test-install-previous-upgrade]
+    commands:
+      - |-
+        mise use bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          jq@$${JQ_VERSION} kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-upgrade-file-system.sh
+
+  - name: delete-kind-cluster-upgrade
+    image: quay.io/sighup/mise:v2026.8.6
+    pull: always
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    commands:
+      - |
+        mise use kind@$${KIND_VERSION}
+        eval "$(mise activate bash --shims)"
+      - kind delete cluster --name $${CLUSTER_NAME} || true
+    depends_on: [test-upgrade-backup-restore]
+    when:
+      status:
+        - success
+        - failure
+
+volumes:
+  - name: dockersock
+    host:
+      path: /var/run/docker.sock
+  - name: mise-cache
+    host:
+      path: /root/mise_data_dir
+
+---
 name: release
 kind: pipeline
 type: docker
@@ -1724,6 +1837,7 @@ depends_on:
   - e2e-kubernetes-1.33-upgrade
   - e2e-kubernetes-1.34-upgrade
   - e2e-kubernetes-1.35-upgrade
+  - e2e-kubernetes-1.36-upgrade
 
 platform:
   os: linux

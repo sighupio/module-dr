@@ -7,12 +7,12 @@ To update the Velero package, follow the next steps:
 velero install --namespace kube-system --provider aws --no-secret --bucket my-bucket --dry-run -o yaml --plugins velero/velero-plugin-for-aws:<tag> --use-node-agent > orig.yaml
 ```
 - Update CRDs in [`/katalog/velero/velero-base/crds.yaml`](./velero-base/crds.yaml) with: `velero install --crds-only --dry-run -o yaml > crds.yaml`
-- Port the needed changes
-- Update the images tags
+- Port the necessary changes
+- Update the image tags
 - Sync the image to our registry
 
 ## Customizations
-- The package has been split in three Kustomize bases:
+- The package has been split into three Kustomize bases:
   - [`velero-base`](./velero-base)
   - [`velero-node-agent`](./velero-node-agent)
   - [`velero-schedules`](./velero-schedules)
@@ -31,8 +31,8 @@ velero install --namespace kube-system --provider aws --no-secret --bucket my-bu
 - Removed Prometheus annotations from Velero `Deployment`
 - Added a `Service` and a `ServiceMonitor` for monitoring
 - Add `--features=EnableCSI` to enable the use of the underlying *CSI Driver* for Velero.
-- Change `--uploader-type=restic` to `--uploader-type=kopia`, in order to use [kopia](https://github.com/kopia/kopia/) for Data Movement.
-- Add the `HOME` environment variable and a volume mount as a workaround for [this issue](https://github.com/vmware-tanzu/velero/issues/8067), which is due to the `runAsUser` set in the `securityContext` of the [Velero deployment](../velero-base/deployment.yaml)
+- Change `--uploader-type=restic` to `--uploader-type=kopia`, to use [kopia](https://github.com/kopia/kopia/) for Data Movement.
+- Add the `HOME` environment variable and a volume mount as a workaround for [this issue](https://github.com/velero-io/velero/issues/8067), which is due to the `runAsUser` set in the `securityContext` of the [Velero deployment](../velero-base/deployment.yaml)
 - Added `--client-qps=75.0` and `--client-burst=100` to the Velero server `args` to tune API server request rate limits.
 - Added `--node-agent-configmap=node-agent-config` to the node-agent `DaemonSet` to point it at the configuration `ConfigMap`.
 - Added a `node-agent-config` `ConfigMap` (in `velero-node-agent`) to configure the node-agent; currently sets `prepareQueueLength` to control the number of concurrent backup prepare operations.
