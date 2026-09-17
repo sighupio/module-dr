@@ -20,8 +20,9 @@ This latest release adds support for K8S v1.36 and upgrades the components in th
 ## Features 💥
 
 - Add support for Kubernetes 1.36
-- Update snapshot-controller to v8.6.0: VolumeGroupSnapshot API promoted to GA (`v1`), Velero continues to use `v1beta2`
-- Update velero-plugin-for-aws to v1.14.2: support for specifying the KMS key for EBS volume restoration
+- Update snapshot-controller to v8.6.0: volume group snapshots are now stable, allowing consistent snapshots of multiple volumes together (e.g. databases spanning several disks), ready for production use
+- Update velero-plugin-for-aws to v1.14.2: restores on AWS can now specify which encryption key to use for EBS volumes, useful for security and compliance requirements
+- Update Velero Grafana dashboard to upstream revision 5: adds File System Backup and CSI Snapshot Data Mover panels
 
 ## Breaking Changes 💔
 
