@@ -1,15 +1,22 @@
-# Grafana Dahsboards for Velero
+# Grafana Dashboards for Velero
 
-Grafana Dashboard is taken from the official one provided by Tanzu/Velero:
+Grafana Dashboard is taken from the official one maintained by the Velero team:
 <https://grafana.com/grafana/dashboards/16829-kubernetes-tanzu-velero/>
 
-There's an issue with the datasource of each widget when the dashboard is imported as-is from upstream.
+Current version in repo: revision 5 (2023-09-14, the latest available upstream).
 
-You need to change all the occurences of `"uid": "${DS_PROMETHEUS-1}"` with `"uid": "${datasource}"`, and while we are at it we polish a little the Title:
+To update:
+
+1. Download the new revision:
 
 ```bash
-# command for MacOS version of sed
-sed -i -e 's/"uid": "${DS_PROMETHEUS-1}"/"uid": "${datasource}"/g' velero.json
-# using `#` as separator instead of `/` for simplicity
-sed -i -e 's#Tanzu/Velero#Velero#g' velero.json
+curl -sL -o velero.json https://grafana.com/api/dashboards/16829/revisions/<N>/download
+```
+
+2. Set `"id": null`.
+
+3. Simplify the title:
+
+```bash
+sed -i -e 's#Kubernetes/Tanzu/Velero#Velero#g' velero.json
 ```
