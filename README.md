@@ -9,7 +9,7 @@
 </h1>
 <!-- markdownlint-enable MD033 -->
 
-![Release](https://img.shields.io/badge/Latest%20Release-v3.4.0-blue)
+![Release](https://img.shields.io/badge/Latest%20Release-v3.5.0-blue)
 ![License](https://img.shields.io/github/license/sighupio/module-dr?label=License)
 [![Slack](https://img.shields.io/badge/slack-@kubernetes/fury-yellow.svg?logo=slack&label=Slack)](https://kubernetes.slack.com/archives/C0154HYTAQH)
 
@@ -35,7 +35,7 @@ Disaster Recovery Module provides the following packages:
 
 | Package                                    | Version     | Description                                                                                                     |
 | ------------------------------------------ | ----------- | --------------------------------------------------------------------------------------------------------------- |
-| [velero](katalog/velero)                   | `v1.18.1`   | Backup and restore, perform disaster recovery, and migrate Kubernetes cluster resources and persistent volumes. |
+| [velero](katalog/velero)                   | `v1.18.2`   | Backup and restore, perform disaster recovery, and migrate Kubernetes cluster resources and persistent volumes. |
 | [etcd-backup-s3](katalog/etcd-backup-s3)   | `homegrown` | Backup etcd on a remote S3 bucket.                                                                              |
 | [etcd-backup-pvc](katalog/etcd-backup-pvc) | `homegrown` | Backup etcd on a PersistentVolumeClaim.                                                                         |
 
