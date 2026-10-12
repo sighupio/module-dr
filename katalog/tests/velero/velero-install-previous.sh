@@ -43,7 +43,7 @@ load ./../helper
 @test "Deploy Velero on Prem" {
     info
     test() {
-        apply https://github.com/sighupio/module-dr.git//katalog/velero/velero-on-prem?ref=v3.4.0
+        apply https://github.com/sighupio/module-dr.git/katalog/velero/velero-on-prem?ref=v3.4.0
     }
     loop_it test 30 10
     status=${loop_it_result}
@@ -74,7 +74,7 @@ load ./../helper
 @test "Deploy Velero Node Agent" {
     info
     test() {
-        apply https://github.com/sighupio/module-dr.git//katalog/velero/velero-node-agent?ref=v3.4.0
+        apply https://github.com/sighupio/module-dr.git/katalog/velero/velero-node-agent?ref=v3.4.0
     }
     run test
     [ "$status" -eq 0 ]
@@ -93,7 +93,7 @@ load ./../helper
 @test "Deploy Velero Schedules" {
     info
     test() {
-        apply https://github.com/sighupio/module-dr.git//katalog/velero/velero-schedules?ref=v3.4.0
+        apply https://github.com/sighupio/module-dr.git/katalog/velero/velero-schedules?ref=v3.4.0
     }
     run test
     [ "$status" -eq 0 ]
