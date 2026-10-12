@@ -19,8 +19,7 @@ load ./../helper
 @test "Create file inside PV" {
     info
     test() {
-        # No TTY needed in CI
-        kubectl exec deployment/to-be-snapshotted -- touch /persistent-storage/HELLO_CI
+        write_test_data to-be-snapshotted /persistent-storage/HELLO_CI
     }
     run test
     [ "$status" -eq 0 ]
@@ -65,7 +64,7 @@ load ./../helper
     info
     test() {
         # Give restore more time under load
-        timeout 10m velero restore create --from-backup backup-e2e-snapshot-full -n kube-system --wait
+        timeout 10m velero restore create restore-e2e-snapshot-full --from-backup backup-e2e-snapshot-full -n kube-system --wait
         # Ensure restored deployment becomes ready before verification
         kubectl rollout status deployment/to-be-snapshotted --watch --timeout=10m
     }
@@ -73,11 +72,16 @@ load ./../helper
     [ "$status" -eq 0 ]
 }
 
-@test "Test Recovery that deleted files are present" {
+@test "Verify that restore is completed" {
+    info
+    run restore_completed restore-e2e-snapshot-full
+    [ "$status" -eq 0 ]
+}
+
+@test "Test Recovery that deleted files are present with the same content" {
     info
     test() {
-        # No TTY needed in CI
-        kubectl exec -n default deployment/to-be-snapshotted -- ls /persistent-storage/HELLO_CI
+        verify_test_data to-be-snapshotted /persistent-storage/HELLO_CI
     }
     loop_it test 10 10
     [ "$status" -eq 0 ]
@@ -86,7 +90,9 @@ load ./../helper
 @test "Delete backup" {
     info
     test(){
+        velero restore delete restore-e2e-snapshot-full --confirm -n kube-system
         velero backup delete backup-e2e-snapshot-full --confirm -n kube-system
+        kubectl wait --for=delete restore/restore-e2e-snapshot-full backup/backup-e2e-snapshot-full -n kube-system --timeout=10m
         kubectl delete volumesnapshots.snapshot.storage.k8s.io --all 
     }
     run test

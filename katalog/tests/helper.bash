@@ -38,3 +38,29 @@ loop_it(){
   done
   return 0
 }
+
+# restore_completed <name> succeeds only if the Restore reached the Completed phase.
+# `velero restore create --wait` exits 0 also on PartiallyFailed/Failed, so this must be checked explicitly.
+restore_completed(){
+  phase=$(kubectl get restore "$1" -n kube-system -o jsonpath='{.status.phase}')
+  if [ "${phase}" != "Completed" ]; then
+    echo "# Restore $1 phase: ${phase}" >&3
+    velero restore describe "$1" -n kube-system --details >&3
+    return 1
+  fi
+}
+
+# write_test_data <deployment> <file> writes 10 MiB of random data into <file> inside the deployment pod
+# and stores its sha256 checksum in the bats file tmpdir, to be checked later with verify_test_data.
+write_test_data(){
+  kubectl exec -n default deployment/$1 -- sh -c "head -c 10485760 /dev/urandom > $2"
+  kubectl exec -n default deployment/$1 -- sha256sum $2 | cut -d' ' -f1 > "${BATS_FILE_TMPDIR}/$1.sha256"
+  [ -s "${BATS_FILE_TMPDIR}/$1.sha256" ]
+}
+
+# verify_test_data <deployment> <file> succeeds only if <file> has the checksum stored by write_test_data.
+verify_test_data(){
+  expected=$(cat "${BATS_FILE_TMPDIR}/$1.sha256")
+  actual=$(kubectl exec -n default deployment/$1 -- sha256sum $2 | cut -d' ' -f1)
+  [ -n "${expected}" ] && [ "${actual}" = "${expected}" ]
+}

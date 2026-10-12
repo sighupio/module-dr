@@ -10,7 +10,7 @@ load ./../helper
     test() {
         apply katalog/tests/test-app
         kubectl rollout status deployment/mysql --watch --timeout=10m
-        kubectl exec deployment/mysql -- touch /var/lib/mysql/HELLO_CI
+        write_test_data mysql /var/lib/mysql/HELLO_CI
     }
     run test
     [ "$status" -eq 0 ]
@@ -68,17 +68,23 @@ load ./../helper
     test() {
         # restore requires static PV for this app
         kubectl apply -n default -f katalog/tests/test-app/resources/pv.yaml
-        timeout 10m velero restore create --from-backup backup-e2e-app-upgrade -n kube-system --wait
+        timeout 10m velero restore create restore-e2e-app-upgrade --from-backup backup-e2e-app-upgrade -n kube-system --wait
         kubectl rollout status deployment/mysql --watch --timeout=10m
     }
     run test
     [ "$status" -eq 0 ]
 }
 
-@test "Verify restored marker file exists" {
+@test "Verify that restore is completed" {
+    info
+    run restore_completed restore-e2e-app-upgrade
+    [ "$status" -eq 0 ]
+}
+
+@test "Verify restored marker file has the same content" {
     info
     test() {
-        kubectl exec -n default deployment/mysql -- ls /var/lib/mysql/HELLO_CI
+        verify_test_data mysql /var/lib/mysql/HELLO_CI
     }
     loop_it test 10 10
     [ "$status" -eq 0 ]

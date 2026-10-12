@@ -12,8 +12,7 @@ load ./../helper
         apply katalog/tests/test-app
         # Wait for the deployment to become ready instead of sleeping
         kubectl rollout status deployment/mysql --watch --timeout=10m
-        # No TTY needed in CI
-        kubectl exec deployment/mysql -- touch /var/lib/mysql/HELLO_CI
+        write_test_data mysql /var/lib/mysql/HELLO_CI
     }
     run test
     [ "$status" -eq 0 ]
@@ -59,7 +58,7 @@ load ./../helper
         # Caveat, to restore a `local` pv, the pv must be manually created, restic expects dynamic pv creation
         kubectl apply -n default -f katalog/tests/test-app/resources/pv.yaml
         # Give restore more time under load
-        timeout 10m velero restore create --from-backup backup-e2e-app -n kube-system --wait
+        timeout 10m velero restore create restore-e2e-app --from-backup backup-e2e-app -n kube-system --wait
         # Ensure restored deployment becomes ready before verification
         kubectl rollout status deployment/mysql --watch --timeout=10m
     }
@@ -67,12 +66,16 @@ load ./../helper
     [ "$status" -eq 0 ]
 }
 
+@test "Verify that restore is completed" {
+    info
+    run restore_completed restore-e2e-app
+    [ "$status" -eq 0 ]
+}
 
-@test "Test Recovery that deleted files are present" {
+@test "Test Recovery that deleted files are present with the same content" {
     info
     test() {
-        # No TTY needed in CI
-        kubectl exec -n default deployment/mysql -- ls /var/lib/mysql/HELLO_CI
+        verify_test_data mysql /var/lib/mysql/HELLO_CI
     }
     loop_it test 10 10
     [ "$status" -eq 0 ]
@@ -81,7 +84,9 @@ load ./../helper
 @test "Delete backup" {
     info
     test(){
+        velero restore delete restore-e2e-app --confirm -n kube-system
         velero backup delete backup-e2e-app --confirm -n kube-system
+        kubectl wait --for=delete restore/restore-e2e-app backup/backup-e2e-app -n kube-system --timeout=10m
     }
     run test
     [ "$status" -eq 0 ]
