@@ -25,15 +25,24 @@ create_cluster(){
   kind create cluster --name "${DR_PREFIX}-$1" --image "${DR_NODE_IMAGE}" --config katalog/tests/kind-config.yml --kubeconfig "${BATS_FILE_TMPDIR}/kubeconfig-$1"
 }
 
+# apply_retry <path> retries the apply until it succeeds: the first apply creates the CRDs
+# but fails on the CRs until the CRDs are established.
+apply_retry(){
+  for _ in $(seq 1 30); do
+    apply "$1" && return 0
+    sleep 2
+  done
+  return 1
+}
+
 # install_velero <access mode> installs Velero with the BackupStorageLocation pointing to the external MinIO.
 install_velero(){
   set -e
   minio_ip=$(docker inspect -f '{{.NetworkSettings.Networks.kind.IPAddress}}' "${DR_MINIO}")
   kubectl apply -f https://raw.githubusercontent.com/sighupio/fury-kubernetes-monitoring/v3.5.0/katalog/prometheus-operator/crds/0prometheusruleCustomResourceDefinition.yaml
   kubectl apply -f https://raw.githubusercontent.com/sighupio/fury-kubernetes-monitoring/v3.5.0/katalog/prometheus-operator/crds/0servicemonitorCustomResourceDefinition.yaml
-  # The first apply creates the CRDs but fails on the Velero CRs until the CRDs are established
-  for _ in $(seq 1 30); do apply katalog/velero/velero-on-prem && break; sleep 10; done
-  apply katalog/velero/velero-on-prem
+  apply_retry katalog/velero/snapshot-controller
+  apply_retry katalog/velero/velero-on-prem
   kubectl patch backupstoragelocation default -n kube-system --type merge \
     -p "{\"spec\":{\"accessMode\":\"$1\",\"config\":{\"s3Url\":\"http://${minio_ip}:9000\"}}}"
   apply katalog/velero/velero-node-agent
@@ -135,8 +144,8 @@ teardown_file(){
     use_cluster b
     test() {
         # Caveat, to restore a `local` pv, the pv must be manually created
-        kubectl apply -n default -f katalog/tests/test-app/resources/sc.yaml
-        kubectl apply -n default -f katalog/tests/test-app/resources/pv.yaml
+        kubectl apply -f katalog/tests/test-app/resources/sc.yaml
+        kubectl apply -f katalog/tests/test-app/resources/pv.yaml
         timeout 10m velero restore create restore-e2e-dr --from-backup backup-e2e-dr -n kube-system --wait
         kubectl rollout status deployment/mysql --watch --timeout=10m
     }
@@ -157,6 +166,6 @@ teardown_file(){
     test() {
         verify_test_data mysql /var/lib/mysql/HELLO_CI
     }
-    loop_it test 10 10
+    loop_it test 30 2
     [ "$status" -eq 0 ]
 }

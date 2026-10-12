@@ -198,7 +198,8 @@ steps:
         path: /var/run/docker.sock
       - name: mise-cache
         path: /mise-data
-    depends_on: [test-backup-restore]
+    depends_on:
+      - delete-kind-cluster
     commands:
       - |-
         mise use kind@$${KIND_VERSION} bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
@@ -538,7 +539,8 @@ steps:
         path: /var/run/docker.sock
       - name: mise-cache
         path: /mise-data
-    depends_on: [test-backup-restore]
+    depends_on:
+      - delete-kind-cluster
     commands:
       - |-
         mise use kind@$${KIND_VERSION} bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
@@ -878,7 +880,8 @@ steps:
         path: /var/run/docker.sock
       - name: mise-cache
         path: /mise-data
-    depends_on: [test-backup-restore]
+    depends_on:
+      - delete-kind-cluster
     commands:
       - |-
         mise use kind@$${KIND_VERSION} bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
@@ -1218,7 +1221,8 @@ steps:
         path: /var/run/docker.sock
       - name: mise-cache
         path: /mise-data
-    depends_on: [test-backup-restore]
+    depends_on:
+      - delete-kind-cluster
     commands:
       - |-
         mise use kind@$${KIND_VERSION} bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
