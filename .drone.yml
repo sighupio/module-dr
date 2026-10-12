@@ -189,6 +189,23 @@ steps:
       - bats -t katalog/tests/velero/velero-file-system-backup.sh
       - bats -t katalog/tests/velero/velero-snapshot-backup.sh
 
+  - name: test-disaster-recovery
+    image: quay.io/sighup/mise:v2026.8.6
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [test-backup-restore]
+    commands:
+      - |-
+        mise use kind@$${KIND_VERSION} bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-disaster-recovery.sh
+
   - name: init-aws
     image: hashicorp/terraform:1.4.6
     pull: always
@@ -511,6 +528,23 @@ steps:
       - bats -t katalog/tests/velero/velero-manifest-backup.sh
       - bats -t katalog/tests/velero/velero-file-system-backup.sh
       - bats -t katalog/tests/velero/velero-snapshot-backup.sh
+
+  - name: test-disaster-recovery
+    image: quay.io/sighup/mise:v2026.8.6
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [test-backup-restore]
+    commands:
+      - |-
+        mise use kind@$${KIND_VERSION} bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-disaster-recovery.sh
 
   - name: init-aws
     image: hashicorp/terraform:1.4.6
@@ -835,6 +869,23 @@ steps:
       - bats -t katalog/tests/velero/velero-file-system-backup.sh
       - bats -t katalog/tests/velero/velero-snapshot-backup.sh
 
+  - name: test-disaster-recovery
+    image: quay.io/sighup/mise:v2026.8.6
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [test-backup-restore]
+    commands:
+      - |-
+        mise use kind@$${KIND_VERSION} bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-disaster-recovery.sh
+
   - name: init-aws
     image: hashicorp/terraform:1.4.6
     pull: always
@@ -1157,6 +1208,23 @@ steps:
       - bats -t katalog/tests/velero/velero-manifest-backup.sh
       - bats -t katalog/tests/velero/velero-file-system-backup.sh
       - bats -t katalog/tests/velero/velero-snapshot-backup.sh
+
+  - name: test-disaster-recovery
+    image: quay.io/sighup/mise:v2026.8.6
+    pull: always
+    network_mode: host
+    volumes:
+      - name: dockersock
+        path: /var/run/docker.sock
+      - name: mise-cache
+        path: /mise-data
+    depends_on: [test-backup-restore]
+    commands:
+      - |-
+        mise use kind@$${KIND_VERSION} bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
+          kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+        eval "$(mise activate bash --shims)"
+      - bats -t katalog/tests/velero/velero-disaster-recovery.sh
 
   - name: init-aws
     image: hashicorp/terraform:1.4.6
