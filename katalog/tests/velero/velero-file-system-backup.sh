@@ -11,7 +11,7 @@ load ./../helper
     test() {
         apply katalog/tests/test-app
         # Wait for the deployment to become ready instead of sleeping
-        kubectl rollout status deployment/mysql --watch --timeout=10m
+        kubectl rollout status deployment/mysql -n default --watch --timeout=10m
         write_test_data mysql /var/lib/mysql/HELLO_CI
     }
     run test
@@ -39,7 +39,7 @@ load ./../helper
     info
     test() {
         # No TTY needed in CI
-        kubectl exec deployment/mysql -- rm /var/lib/mysql/HELLO_CI
+        kubectl exec deployment/mysql -n default -- rm /var/lib/mysql/HELLO_CI
         kubectl delete deployments -n default --all
         kubectl delete pvc -n default --all
         kubectl delete pv mysql-pv
@@ -60,7 +60,7 @@ load ./../helper
         # Give restore more time under load
         timeout 10m velero restore create restore-e2e-app --from-backup backup-e2e-app -n kube-system --wait
         # Ensure restored deployment becomes ready before verification
-        kubectl rollout status deployment/mysql --watch --timeout=10m
+        kubectl rollout status deployment/mysql -n default --watch --timeout=10m
     }
     run test
     [ "$status" -eq 0 ]

@@ -110,6 +110,7 @@ environment:
   JQ_VERSION: "1.8.1"
   BATS_VERSION: "1.1.0"
   KUSTOMIZE_VERSION: "5.6.0"
+  KAPP_VERSION: "0.65.4"
   VELERO_VERSION: "1.17.1"
 
   # /drone/src is the default workdir for the pipeline
@@ -408,7 +409,7 @@ steps:
     commands:
       - |-
         mise use kind@$${KIND_VERSION} bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
-          kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+          kustomize@$${KUSTOMIZE_VERSION} kapp@$${KAPP_VERSION} velero@$${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
       - bats -t katalog/tests/velero/velero-disaster-recovery.sh
 
@@ -451,6 +452,7 @@ environment:
   JQ_VERSION: "1.8.1"
   BATS_VERSION: "1.1.0"
   KUSTOMIZE_VERSION: "5.6.0"
+  KAPP_VERSION: "0.65.4"
   VELERO_VERSION: "1.17.1"
 
   # /drone/src is the default workdir for the pipeline
@@ -749,7 +751,7 @@ steps:
     commands:
       - |-
         mise use kind@$${KIND_VERSION} bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
-          kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+          kustomize@$${KUSTOMIZE_VERSION} kapp@$${KAPP_VERSION} velero@$${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
       - bats -t katalog/tests/velero/velero-disaster-recovery.sh
 
@@ -792,6 +794,7 @@ environment:
   JQ_VERSION: "1.8.1"
   BATS_VERSION: "1.1.0"
   KUSTOMIZE_VERSION: "5.6.0"
+  KAPP_VERSION: "0.65.4"
   VELERO_VERSION: "1.17.1"
 
   # /drone/src is the default workdir for the pipeline
@@ -1090,7 +1093,7 @@ steps:
     commands:
       - |-
         mise use kind@$${KIND_VERSION} bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
-          kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+          kustomize@$${KUSTOMIZE_VERSION} kapp@$${KAPP_VERSION} velero@$${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
       - bats -t katalog/tests/velero/velero-disaster-recovery.sh
 
@@ -1133,6 +1136,7 @@ environment:
   JQ_VERSION: "1.8.2"
   BATS_VERSION: "1.14.0"
   KUSTOMIZE_VERSION: "5.6.0"
+  KAPP_VERSION: "0.65.4"
   VELERO_VERSION: "1.18.2"
 
   # /drone/src is the default workdir for the pipeline
@@ -1431,7 +1435,7 @@ steps:
     commands:
       - |-
         mise use kind@$${KIND_VERSION} bats@$${BATS_VERSION} kubectl@$${KUBECTL_VERSION} \
-          kustomize@$${KUSTOMIZE_VERSION} velero@$${VELERO_VERSION}
+          kustomize@$${KUSTOMIZE_VERSION} kapp@$${KAPP_VERSION} velero@$${VELERO_VERSION}
         eval "$(mise activate bash --shims)"
       - bats -t katalog/tests/velero/velero-disaster-recovery.sh
 

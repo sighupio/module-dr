@@ -10,7 +10,7 @@ load ./../helper
     info
     test() {
         apply katalog/tests/test-app-snapshot
-        kubectl rollout status deployment/to-be-snapshotted --watch --timeout=10m
+        kubectl rollout status deployment/to-be-snapshotted -n default --watch --timeout=10m
     }
     run test
     [ "$status" -eq 0 ]
@@ -46,9 +46,9 @@ load ./../helper
     info
     test() {
         # No TTY needed in CI
-        kubectl exec deployment/to-be-snapshotted -- rm /persistent-storage/HELLO_CI
+        kubectl exec deployment/to-be-snapshotted -n default -- rm /persistent-storage/HELLO_CI
         kubectl delete deployments -n default --all
-        pv=$(kubectl get pvc to-be-snapshotted-pvc -o jsonpath='{.spec.volumeName}')
+        pv=$(kubectl get pvc to-be-snapshotted-pvc -n default -o jsonpath='{.spec.volumeName}')
         kubectl delete pvc -n default --all
         kubectl delete pv "$pv"
 
@@ -66,7 +66,7 @@ load ./../helper
         # Give restore more time under load
         timeout 10m velero restore create restore-e2e-snapshot-full --from-backup backup-e2e-snapshot-full -n kube-system --wait
         # Ensure restored deployment becomes ready before verification
-        kubectl rollout status deployment/to-be-snapshotted --watch --timeout=10m
+        kubectl rollout status deployment/to-be-snapshotted -n default --watch --timeout=10m
     }
     run test
     [ "$status" -eq 0 ]
@@ -93,7 +93,7 @@ load ./../helper
         velero restore delete restore-e2e-snapshot-full --confirm -n kube-system
         velero backup delete backup-e2e-snapshot-full --confirm -n kube-system
         kubectl wait --for=delete restore/restore-e2e-snapshot-full backup/backup-e2e-snapshot-full -n kube-system --timeout=10m
-        kubectl delete volumesnapshots.snapshot.storage.k8s.io --all 
+        kubectl delete volumesnapshots.snapshot.storage.k8s.io -n default --all 
     }
     run test
     [ "$status" -eq 0 ]

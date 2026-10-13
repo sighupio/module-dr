@@ -9,7 +9,7 @@ load ./../helper
     info
     test() {
         apply katalog/tests/test-app
-        kubectl rollout status deployment/mysql --watch --timeout=10m
+        kubectl rollout status deployment/mysql -n default --watch --timeout=10m
         write_test_data mysql /var/lib/mysql/HELLO_CI
     }
     run test
@@ -51,7 +51,7 @@ load ./../helper
 @test "Induce failure by deleting app and PV" {
     info
     test() {
-        kubectl exec deployment/mysql -- rm /var/lib/mysql/HELLO_CI || true
+        kubectl exec deployment/mysql -n default -- rm /var/lib/mysql/HELLO_CI || true
         kubectl delete deployments -n default --all
         kubectl delete pvc -n default --all
         kubectl delete pv mysql-pv || true
@@ -69,7 +69,7 @@ load ./../helper
         # restore requires static PV for this app
         kubectl apply -n default -f katalog/tests/test-app/resources/pv.yaml
         timeout 10m velero restore create restore-e2e-app-upgrade --from-backup backup-e2e-app-upgrade -n kube-system --wait
-        kubectl rollout status deployment/mysql --watch --timeout=10m
+        kubectl rollout status deployment/mysql -n default --watch --timeout=10m
     }
     run test
     [ "$status" -eq 0 ]
