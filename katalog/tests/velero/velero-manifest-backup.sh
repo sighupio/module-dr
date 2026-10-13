@@ -36,9 +36,15 @@ load ./../helper
     info
     test() {
         # Give restore more time under load
-        timeout 10m velero restore create --from-backup backup-e2e -n kube-system --wait
+        timeout 10m velero restore create restore-e2e --from-backup backup-e2e -n kube-system --wait
     }
     run test
+    [ "$status" -eq 0 ]
+}
+
+@test "Verify that restore is completed" {
+    info
+    run restore_completed restore-e2e
     [ "$status" -eq 0 ]
 }
 
@@ -54,7 +60,9 @@ load ./../helper
 @test "Delete backup" {
     info
     test(){
+        velero restore delete restore-e2e --confirm -n kube-system
         velero backup delete backup-e2e --confirm -n kube-system
+        kubectl wait --for=delete restore/restore-e2e backup/backup-e2e -n kube-system --timeout=10m
     }
     run test
     [ "$status" -eq 0 ]

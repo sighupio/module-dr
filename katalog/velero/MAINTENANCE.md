@@ -10,6 +10,7 @@ velero install --namespace kube-system --provider aws --no-secret --bucket my-bu
 - Port the necessary changes
 - Update the image tags
 - Sync the image to our registry
+- Update the `ref` of every package in [`katalog/tests/velero/velero-install-previous.sh`](../tests/velero/velero-install-previous.sh) to the latest published module release tag, so that the upgrade e2e tests (`velero-upgrade-file-system.sh`) cover the upgrade path from the version users are running
 
 ## Customizations
 - The package has been split into three Kustomize bases:
@@ -32,7 +33,7 @@ velero install --namespace kube-system --provider aws --no-secret --bucket my-bu
 - Added a `Service` and a `ServiceMonitor` for monitoring
 - Add `--features=EnableCSI` to enable the use of the underlying *CSI Driver* for Velero.
 - Change `--uploader-type=restic` to `--uploader-type=kopia`, to use [kopia](https://github.com/kopia/kopia/) for Data Movement.
-- Add the `HOME` environment variable and a volume mount as a workaround for [this issue](https://github.com/velero-io/velero/issues/8067), which is due to the `runAsUser` set in the `securityContext` of the [Velero deployment](../velero-base/deployment.yaml)
+- Add the `HOME` environment variable and a volume mount as a workaround for [this issue](https://github.com/velero-io/velero/issues/8067), which is due to the `runAsUser` set in the `securityContext` of the [Velero deployment](./velero-base/deployment.yaml)
 - Added `--client-qps=75.0` and `--client-burst=100` to the Velero server `args` to tune API server request rate limits.
 - Added `--node-agent-configmap=node-agent-config` to the node-agent `DaemonSet` to point it at the configuration `ConfigMap`.
 - Added a `node-agent-config` `ConfigMap` (in `velero-node-agent`) to configure the node-agent; currently sets `prepareQueueLength` to control the number of concurrent backup prepare operations.
